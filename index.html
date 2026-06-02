@@ -637,7 +637,7 @@ function roundRobin(ids){
   }
   return res;
 }
-function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'' }; }
+function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'龍井國際青年商會' }; }
 function koSkeleton(){
   const mk=(id,round,slot)=>({id, stage:'ko', round, slot, homeId:null, awayId:null, status:0, sets:[], currentSet:0});
   return [ mk(1001,'QF',1), mk(1002,'QF',2), mk(1003,'QF',3), mk(1004,'QF',4),
@@ -934,7 +934,7 @@ function renderBrand(){
   }
   const yr=document.getElementById('crYear'); if(yr) yr.textContent=new Date().getFullYear();
   const cr=document.getElementById('crHolder');
-  if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : (b.title||'');
+  if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : '龍井國際青年商會';
 }
 
 function renderLive(){
