@@ -1,0 +1,31 @@
+{
+  "rules": {
+
+    // ── 賽事資料：所有人可讀（觀眾、投影、手機）；只有登入的計分台帳號可寫 ──
+    "tournaments": {
+      "$room": {
+        ".read": true,
+
+        // 只允許「已登入」且 email 為授權計分台帳號者寫入。
+        // ↓↓↓ 把下面這個 Email 換成你的計分台帳號 ↓↓↓
+        //   這個帳號要先在 Firebase 主控台建立：
+        //   Authentication → Sign-in method → 啟用「電子郵件/密碼」→ Users 分頁 → 新增使用者
+        //   （它不是你的 GitHub 帳號，可自訂，例如 longjing.score@gmail.com）
+        // 若有多位計分員，改用白名單： auth != null && root.child('writers').child(auth.uid).val() === true
+        ".write": "auth != null && auth.token.email === '換成你的計分台EMAIL@example.com'",
+
+        // 結構驗證：節點只能是 { data: <字串>, updatedAt: <數字> }，其餘欄位一律拒絕
+        ".validate": "newData.hasChildren(['data', 'updatedAt'])",
+        "data":      { ".validate": "newData.isString() && newData.val().length <= 5000000" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other":    { ".validate": false }
+      }
+    },
+
+    // ── 其他所有路徑：一律禁止讀寫 ──
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
