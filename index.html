@@ -7,6 +7,7 @@
 <!-- Firebase（即時雲端同步；未設定時自動退回單機模式） -->
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap');
 
@@ -297,6 +298,17 @@ body.board-mode .lcard{padding:26px;}
 .board-head .sub{font-family:'Oswald',sans-serif; letter-spacing:.18em; color:var(--jci); font-size:14px;}
 .board-exit{position:fixed; right:16px; bottom:16px; z-index:80;}
 
+/* ---------- 頁尾版權 ---------- */
+.site-footer{margin-top:40px; padding:20px 4px 6px; border-top:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
+  font-family:'Barlow','Noto Sans TC',sans-serif; font-size:12.5px; color:var(--muted);}
+.site-footer .cr{color:var(--jci); font-weight:700;}
+.site-footer .cr-holder{font-family:inherit; font-size:12.5px; color:var(--text); text-align:center;
+  background:transparent; border:1px solid transparent; border-radius:6px; padding:2px 6px; min-width:60px; width:auto;}
+.site-footer .cr-holder:hover{border-color:var(--line);}
+.site-footer .cr-holder:focus{outline:none; border-color:var(--jci); background:rgba(0,0,0,.25);}
+body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transparent !important; background:transparent !important;}
+
 /* ---------- 密碼對話框 ---------- */
 .modal-overlay{ position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
   background:rgba(3,16,30,.72); backdrop-filter:blur(5px); }
@@ -355,6 +367,7 @@ body.board-mode .lcard{padding:26px;}
 
     <div class="tools">
       <span class="sync-pill sp-local" id="syncPill">本機模式</span>
+      <button class="btn wbtn" id="loginBtn" onclick="loginClick()" style="display:none">🔑 計分台登入</button>
       <button class="btn wbtn" id="undoBtn" onclick="undo()" disabled>↶ 復原</button>
       <button class="btn wbtn" onclick="copyViewerLink()">🔗 觀眾連結</button>
       <button class="btn" onclick="openBoard()">🔲 大螢幕</button>
@@ -451,6 +464,13 @@ body.board-mode .lcard{padding:26px;}
       所有資料自動存在這台電腦的瀏覽器，重開不會遺失；要備份或換電腦請用「匯出 JSON」。
     </p>
   </section>
+
+  <footer class="site-footer">
+    <span class="cr">©</span>
+    <span id="crYear"></span>
+    <input class="cr-holder" id="crHolder" placeholder="版權所有單位" value="" onchange="setBrand('copyright', this.value)">
+    <span>．版權所有　All rights reserved.</span>
+  </footer>
 </div>
 
 <button class="btn board-exit hidden" id="boardExit" onclick="location.hash=''; location.reload();">離開大螢幕</button>
@@ -469,6 +489,20 @@ body.board-mode .lcard{padding:26px;}
   </div>
 </div>
 
+<div class="modal-overlay" id="loginModal" onclick="if(event.target===this) loginCancel()">
+  <div class="modal">
+    <h3>🔑 計分台登入</h3>
+    <div class="m-sub">登入授權帳號後才能修改比分（觀眾無需登入即可觀看）。</div>
+    <input type="email" id="loginEmail" autocomplete="username" placeholder="帳號 Email" style="width:100%; font-family:'Barlow'; font-size:16px; color:var(--text); background:rgba(0,0,0,.32); border:1px solid var(--line-2); border-radius:10px; padding:11px; margin-bottom:9px;">
+    <input type="password" id="loginPw" autocomplete="current-password" placeholder="密碼" style="width:100%; font-family:'Barlow'; font-size:16px; color:var(--text); background:rgba(0,0,0,.32); border:1px solid var(--line-2); border-radius:10px; padding:11px;">
+    <div class="m-err" id="loginErr"></div>
+    <div class="m-actions">
+      <button class="btn" onclick="loginCancel()">取消</button>
+      <button class="btn go" onclick="loginConfirm()">登入</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
@@ -480,13 +514,13 @@ const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_sc
    必須建立「Realtime Database」並複製其 databaseURL。
    未填寫時，本程式自動以「單機模式」運作（localStorage + 同機分頁同步）。 */
 const firebaseConfig = {
-   apiKey: "AIzaSyDMlekwrjl2DS459QUpHbklAM3b0Uu-Df0",
-  authDomain: "volleyballscoreboard-a497a.firebaseapp.com",
-  databaseURL: "https://volleyballscoreboard-a497a-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "volleyballscoreboard-a497a",
+  apiKey:        "AIzaSyDMlekwrjl2DS459QUpHbklAM3b0Uu-Df0",
+  authDomain:    "volleyballscoreboard-a497a.firebaseapp.com",
+  databaseURL:   "https://volleyballscoreboard-a497a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:     "volleyballscoreboard-a497a",
   storageBucket: "volleyballscoreboard-a497a.firebasestorage.app",
   messagingSenderId: "532179000476",
-  appId: "1:532179000476:web:6fb2d702fc8110018d2159",
+  appId:         "1:532179000476:web:6fb2d702fc8110018d2159",
   measurementId: "G-5Q68JMXBB1"
 };
 // 賽事代號：同一代號的裝置會同步同一份賽事。可用網址 ?room=xxx 切換不同賽事。
@@ -514,13 +548,53 @@ function copyViewerLink(){
 function setSyncStatus(s){
   const el=document.getElementById('syncPill'); if(!el) return;
   const map={ local:['本機模式','sp-local'], connecting:['雲端連線中…','sp-wait'],
-              online:['雲端已同步','sp-on'], offline:['離線（暫存本機）','sp-off'], error:['雲端設定有誤（本機）','sp-off'] };
+              online:['雲端已同步','sp-on'], offline:['離線（暫存本機）','sp-off'],
+              needlogin:['需登入計分台才能寫入','sp-off'], denied:['寫入被拒（請登入計分台）','sp-off'],
+              error:['雲端設定有誤（本機）','sp-off'] };
   const [txt,cls]=map[s]||map.local; el.textContent=txt; el.className='sync-pill '+cls;
 }
+
+/* ====== 計分台登入（搭配資料庫安全規則：寫入需驗證） ====== */
+let authUser=null, authEnabled=false;
+function hasAuth(){ return typeof firebase!=='undefined' && firebase.auth; }
+function loginClick(){
+  if(!useFirebase){ alert('尚未設定 Firebase 雲端，無需登入（單機模式）。'); return; }
+  if(authUser){
+    if(confirm('目前已登入計分台（'+(authUser.email||'')+'）。要登出嗎？登出後此裝置將無法修改比分。'))
+      firebase.auth().signOut();
+    return;
+  }
+  document.getElementById('loginErr').textContent='';
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPw').value='';
+  document.getElementById('loginModal').classList.add('show');
+  setTimeout(()=>document.getElementById('loginEmail').focus(),50);
+}
+function loginCancel(){ document.getElementById('loginModal').classList.remove('show'); }
+function loginConfirm(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pw=document.getElementById('loginPw').value;
+  if(!email||!pw){ document.getElementById('loginErr').textContent='請輸入帳號與密碼。'; return; }
+  firebase.auth().signInWithEmailAndPassword(email,pw)
+    .then(()=>{ loginCancel(); })
+    .catch(e=>{ document.getElementById('loginErr').textContent='登入失敗：'+(e&&e.code||e.message||''); });
+}
+function updateLoginBtn(){
+  const b=document.getElementById('loginBtn'); if(!b) return;
+  if(READONLY || !useFirebase || !authEnabled){ b.style.display='none'; return; }
+  b.style.display='';
+  b.textContent = authUser ? ('✓ 計分台：'+(authUser.email||'已登入')) : '🔑 計分台登入';
+}
+
 function pushState(){
   if(READONLY || !useFirebase || !fbRef) return;
+  // 若資料庫規則要求登入而尚未登入，先不寫雲端（仍存 localStorage），並提示
+  if(authEnabled && !authUser){ setSyncStatus('needlogin'); return; }
   const json=JSON.stringify(state); lastSeen=json;
-  fbRef.set({ data:json, updatedAt: Date.now() }).catch(()=>setSyncStatus('error'));
+  fbRef.set({ data:json, updatedAt: Date.now() }).catch(err=>{
+    if(err && (err.code==='PERMISSION_DENIED' || /permission/i.test(err.message||''))){ setSyncStatus('denied'); }
+    else setSyncStatus('error');
+  });
 }
 function initFirebase(){
   const notSet = !firebaseConfig.databaseURL || firebaseConfig.databaseURL.indexOf('在此貼上')===0;
@@ -529,6 +603,13 @@ function initFirebase(){
     firebase.initializeApp(firebaseConfig);
     fbRef = firebase.database().ref('tournaments/'+ROOM_ID);
     useFirebase=true; setSyncStatus('connecting');
+    // 若已啟用 Firebase 驗證，追蹤登入狀態（觀眾不需登入即可讀取）
+    if(hasAuth()){
+      authEnabled=true;
+      firebase.auth().onAuthStateChanged(u=>{ authUser=u; updateLoginBtn();
+        if(u && !READONLY) setSyncStatus('online'); });
+    }
+    updateLoginBtn();
     fbRef.on('value', snap=>{
       const v=snap.val();
       if(v && typeof v.data==='string'){
@@ -536,8 +617,8 @@ function initFirebase(){
           lastSeen=v.data;
           try{ const d=normalize(JSON.parse(v.data)); if(d){ state=d; render(); } }catch(e){}
         }
-      } else {
-        pushState();   // 雲端尚無資料 → 上傳目前狀態
+      } else if(!READONLY){
+        pushState();   // 雲端尚無資料 → 由計分台上傳目前狀態
       }
     }, ()=>{ useFirebase=false; setSyncStatus('error'); });
     firebase.database().ref('.info/connected').on('value', s=>{ if(useFirebase) setSyncStatus(s.val()?'online':'offline'); });
@@ -556,7 +637,7 @@ function roundRobin(ids){
   }
   return res;
 }
-function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'' }; }
+function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'' }; }
 function koSkeleton(){
   const mk=(id,round,slot)=>({id, stage:'ko', round, slot, homeId:null, awayId:null, status:0, sets:[], currentSet:0});
   return [ mk(1001,'QF',1), mk(1002,'QF',2), mk(1003,'QF',3), mk(1004,'QF',4),
@@ -851,6 +932,9 @@ function renderBrand(){
   } else { slot.classList.remove('has-logo'); slot.querySelector('.ph').style.display='';
     const im=slot.querySelector('img'); if(im) im.remove();
   }
+  const yr=document.getElementById('crYear'); if(yr) yr.textContent=new Date().getFullYear();
+  const cr=document.getElementById('crHolder');
+  if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : (b.title||'');
 }
 
 function renderLive(){
@@ -1039,7 +1123,7 @@ window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines(
 
 /* ============ 啟動 ============ */
 applyReadonly();
-if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElementById('evtSub'); if(a)a.readOnly=true; if(b)b.readOnly=true; }
+if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElementById('evtSub'), c=document.getElementById('crHolder'); if(a)a.readOnly=true; if(b)b.readOnly=true; if(c)c.readOnly=true; }
 applyBoardMode();
 render();
 initFirebase();
