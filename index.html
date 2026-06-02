@@ -8,6 +8,8 @@
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
+<!-- QR Code 產生器（觀眾連結用） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap');
 
@@ -147,6 +149,9 @@ body.readonly .evt-title, body.readonly .evt-sub{pointer-events:none; border-col
 .badge.s-live{color:#fff; background:var(--live); border-color:var(--live); animation:blink 1.4s infinite;}
 .badge.s-done{color:var(--gold); border-color:rgba(255,210,74,.45);}
 .badge.s-sched{color:var(--muted);}
+.badge.s-point{color:#0a0e1a; background:var(--gold); border-color:var(--gold); animation:pointPulse 1s ease-in-out infinite;}
+.badge.s-mpoint{color:#fff; background:linear-gradient(90deg,var(--accent),var(--live)); border-color:var(--live); animation:pointPulse .8s ease-in-out infinite;}
+@keyframes pointPulse{0%,100%{transform:scale(1); filter:brightness(1);} 50%{transform:scale(1.08); filter:brightness(1.2);}}
 @keyframes blink{50%{opacity:.55;}}
 .team-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; position:relative; z-index:1;}
 .team-row+.team-row{border-top:1px solid var(--line);}
@@ -298,6 +303,30 @@ body.board-mode .lcard{padding:26px;}
 .board-head .sub{font-family:'Oswald',sans-serif; letter-spacing:.18em; color:var(--jci); font-size:14px;}
 .board-exit{position:fixed; right:16px; bottom:16px; z-index:80;}
 
+/* ---------- 公告橫幅 ---------- */
+.announce{display:none; align-items:center; gap:10px; margin:14px 0 4px; padding:11px 16px; border-radius:12px;
+  background:linear-gradient(90deg, rgba(255,200,61,.18), rgba(0,156,222,.12)); border:1px solid rgba(255,200,61,.5);
+  font-family:'Barlow','Noto Sans TC',sans-serif; font-size:14.5px; color:var(--text); position:relative; z-index:1;}
+.announce.show{display:flex;}
+.announce .ann-ico{flex:none; font-size:16px;}
+.announce .ann-text{flex:1; line-height:1.5; word-break:break-word;}
+.announce .ann-x{flex:none; cursor:pointer; color:var(--muted); border:1px solid var(--line-2); border-radius:8px; padding:2px 9px; font-size:13px;}
+.announce .ann-x:hover{color:var(--live); border-color:var(--live);}
+body.readonly .announce .ann-x{display:none;}
+body.board-mode .announce{font-size:22px; padding:16px 22px; margin:8px 0 14px;}
+
+/* ---------- QR Code 對話框 ---------- */
+.qr-box{display:flex; flex-direction:column; align-items:center; gap:12px; margin:6px 0 2px;}
+.qr-box .qr-img{background:#fff; padding:12px; border-radius:12px; line-height:0;}
+.qr-box .qr-img img, .qr-box .qr-img canvas{display:block;}
+.qr-url{font-family:'Barlow'; font-size:12px; color:var(--muted); word-break:break-all; text-align:center; max-width:300px;}
+
+/* 大螢幕角落小 QR */
+.board-qr{display:none; position:fixed; right:18px; bottom:18px; z-index:70; background:#fff; padding:9px;
+  border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,.5); text-align:center;}
+.board-qr .cap{font-family:'Oswald','Noto Sans TC'; font-size:11px; color:#0a0e1a; margin-top:5px; letter-spacing:.04em;}
+body.board-mode .board-qr.on{display:block;}
+
 /* ---------- 頁尾版權 ---------- */
 .site-footer{margin-top:40px; padding:20px 4px 6px; border-top:1px solid var(--line);
   display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
@@ -370,6 +399,9 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
       <button class="btn wbtn" id="loginBtn" onclick="loginClick()" style="display:none">🔑 計分台登入</button>
       <button class="btn wbtn" id="undoBtn" onclick="undo()" disabled>↶ 復原</button>
       <button class="btn wbtn" onclick="copyViewerLink()">🔗 觀眾連結</button>
+      <button class="btn" onclick="showQR()">📱 QR</button>
+      <button class="btn wbtn" onclick="openAnnounce()">📢 公告</button>
+      <button class="btn wbtn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
       <button class="btn" onclick="openBoard()">🔲 大螢幕</button>
       <button class="btn" onclick="exportJSON()">⬇ 匯出 JSON</button>
       <button class="btn wbtn" onclick="document.getElementById('importFile').click()">⬆ 匯入 JSON</button>
@@ -384,6 +416,12 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
   <div class="board-head" id="boardHead">
     <div class="emblem" role="img" aria-label="JCI Taiwan 國際青年商會中華民國總會"></div>
     <div><h1 id="boardTitle">青商盃排球錦標賽</h1><div class="sub" id="boardSub">JCI VOLLEYBALL CUP</div></div>
+  </div>
+
+  <div class="announce" id="announceBar">
+    <span class="ann-ico">📢</span>
+    <span class="ann-text" id="announceText"></span>
+    <span class="ann-x wbtn" onclick="clearAnnounce()">清除</span>
   </div>
 
   <div class="tabs">
@@ -474,6 +512,35 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 </div>
 
 <button class="btn board-exit hidden" id="boardExit" onclick="location.hash=''; location.reload();">離開大螢幕</button>
+
+<div class="board-qr" id="boardQR"><div id="boardQRImg"></div><div class="cap">掃描看即時比分</div></div>
+
+<div class="modal-overlay" id="qrModal" onclick="if(event.target===this) closeQR()">
+  <div class="modal">
+    <h3>📱 觀眾掃碼觀看</h3>
+    <div class="m-sub">請觀眾用手機掃描，即可即時觀看比分（唯讀，無法改分）。</div>
+    <div class="qr-box">
+      <div class="qr-img" id="qrImg"></div>
+      <div class="qr-url" id="qrUrl"></div>
+    </div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeQR()">關閉</button>
+      <button class="btn go" onclick="copyViewerLink()">複製連結</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="announceModal" onclick="if(event.target===this) closeAnnounceModal()">
+  <div class="modal">
+    <h3>📢 發布公告</h3>
+    <div class="m-sub">公告會即時顯示在所有觀眾與大螢幕頂端。留空白後按發布可清除公告。</div>
+    <input type="text" id="announceInput" maxlength="120" placeholder="例如：決賽延後 30 分鐘，頒獎 16:00 開始" style="width:100%; font-family:'Barlow','Noto Sans TC'; font-size:15px; color:var(--text); background:rgba(0,0,0,.32); border:1px solid var(--line-2); border-radius:10px; padding:11px;">
+    <div class="m-actions">
+      <button class="btn" onclick="closeAnnounceModal()">取消</button>
+      <button class="btn go" onclick="submitAnnounce()">發布</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="pwdModal" onclick="if(event.target===this) pwdCancel()">
   <div class="modal">
@@ -637,7 +704,7 @@ function roundRobin(ids){
   }
   return res;
 }
-function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'龍井國際青年商會' }; }
+function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'龍井國際青年商會', announce:'' }; }
 function koSkeleton(){
   const mk=(id,round,slot)=>({id, stage:'ko', round, slot, homeId:null, awayId:null, status:0, sets:[], currentSet:0});
   return [ mk(1001,'QF',1), mk(1002,'QF',2), mk(1003,'QF',3), mk(1004,'QF',4),
@@ -698,6 +765,22 @@ function updateUndoBtn(){ const b=document.getElementById('undoBtn'); if(b) b.di
 const find = id => state.matches.find(m=>m.id===id);
 const teamName = id => { const t=state.teams.find(x=>x.id===id); return t? t.name : '—'; };
 const setsWon = (m,side) => m.sets.filter(s=>s.finished && (side==='home'? s.home>s.away : s.away>s.home)).length;
+// 偵測賽末點/局末點：回傳 {type:'match'|'set', side:'home'|'away'} 或 null（雙方同時則回傳領先方；24-24 之類不算）
+function pointState(m){
+  if(!m || m.status!==1) return null;
+  const cs=m.sets[m.currentSet]; if(!cs || cs.finished) return null;
+  const hw=setsWon(m,'home'), aw=setsWon(m,'away');
+  const decider=(hw===RULES.setsToWin-1 && aw===RULES.setsToWin-1);
+  const target=decider?RULES.deciding:RULES.regular;
+  const check=(me,opp,side)=>{
+    if(me>=target-1 && me-opp>=1){            // 已達門檻前一分、且領先(淨勝>=1)
+      const setsIfWin=(side==='home'?hw:aw)+1;
+      return { type: setsIfWin>=RULES.setsToWin ? 'match':'set', side };
+    }
+    return null;
+  };
+  return check(cs.home,cs.away,'home') || check(cs.away,cs.home,'away');
+}
 function evaluate(m){
   const cs=m.sets[m.currentSet]; if(!cs || cs.finished) return;
   let hw=setsWon(m,'home'), aw=setsWon(m,'away');
@@ -716,8 +799,15 @@ function startMatch(id){ if(READONLY) return; const m=find(id); if(!m||m.status=
 function addPoint(id,side,delta){ if(READONLY) return; const m=find(id); if(!m||m.status!==1) return;
   const cs=m.sets[m.currentSet]; if(!cs) return;
   snap();
+  const prevSets=setsWon(m,'home')+setsWon(m,'away'), wasStatus=m.status;
   if(side==='home') cs.home=Math.max(0,cs.home+delta); else cs.away=Math.max(0,cs.away+delta);
-  evaluate(m); commit(); }
+  evaluate(m);
+  if(delta>0){
+    if(m.status===2 && wasStatus!==2) playSound('match');
+    else if(setsWon(m,'home')+setsWon(m,'away')>prevSets) playSound('set');
+    else playSound('point');
+  }
+  commit(); }
 function finishMatch(id){ if(READONLY) return; const m=find(id); if(!m) return; snap(); m.status=2; commit(); }
 async function resetMatch(id){ if(READONLY) return; const m=find(id); if(!m) return;
   if(!(await askPassword('重設這場比賽，將清空所有比分。'))) return;
@@ -935,6 +1025,9 @@ function renderBrand(){
   const yr=document.getElementById('crYear'); if(yr) yr.textContent=new Date().getFullYear();
   const cr=document.getElementById('crHolder');
   if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : '龍井國際青年商會';
+  const annBar=document.getElementById('announceBar'), annTxt=document.getElementById('announceText');
+  if(annBar && annTxt){ const msg=(b.announce||'').trim();
+    annTxt.textContent=msg; annBar.classList.toggle('show', !!msg); }
 }
 
 function renderLive(){
@@ -947,11 +1040,14 @@ function renderLive(){
     const hw=setsWon(m,'home'), aw=setsWon(m,'away');
     const cs=m.sets[m.currentSet]; const ch=cs?cs.home:0, ca=cs?cs.away:0;
     const homeWin=m.status===2&&hw>aw, awayWin=m.status===2&&aw>hw;
+    const ps=pointState(m);
+    const psBadge = ps ? `<span class="badge ${ps.type==='match'?'s-mpoint':'s-point'}">${ps.type==='match'?'賽末點':'局末點'}</span>` : '';
     const chips=m.sets.map((s,i)=>`<span class="chip">局${i+1} <b>${s.home}-${s.away}</b></span>`).join('');
     return `<div class="lcard ${m.status===1?'live':''}">
       <div class="lcard-top">
         <span class="badge ${m.stage==='ko'?'ko':'group'}">${labelOf(m)}</span>
         <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span>
+        ${psBadge}
         ${m.status===1?'<span class="spin-ball" aria-hidden="true"></span>':''}
         <span style="margin-left:auto">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}</span>
       </div>
@@ -1110,13 +1206,75 @@ document.getElementById('pwdInput').addEventListener('keydown', e=>{
   else if(e.key==='Escape'){ e.preventDefault(); pwdCancel(); }
 });
 
+/* ============ 計分音效（Web Audio，無需音檔） ============ */
+let _audioCtx=null, soundOn=true;
+function beep(freq, dur, t0, type, gain){
+  try{
+    if(!_audioCtx) _audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type||'sine'; o.frequency.value=freq;
+    const start=ctx.currentTime+(t0||0);
+    g.gain.setValueAtTime(0.0001,start);
+    g.gain.exponentialRampToValueAtTime(gain||0.18, start+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, start+dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(start); o.stop(start+dur+0.02);
+  }catch(e){}
+}
+function playSound(kind){
+  if(!soundOn || READONLY) return;
+  if(kind==='point'){ beep(660,0.12,0,'triangle',0.16); }
+  else if(kind==='set'){ beep(660,0.13,0,'square',0.16); beep(880,0.16,0.13,'square',0.16); }
+  else if(kind==='match'){ [523,659,784,1047].forEach((f,i)=>beep(f,0.18,i*0.12,'sawtooth',0.16)); }
+}
+function toggleSound(){ soundOn=!soundOn; updateSoundBtn();
+  if(soundOn){ if(_audioCtx && _audioCtx.state==='suspended') _audioCtx.resume(); playSound('point'); } }
+function updateSoundBtn(){ const b=document.getElementById('soundBtn'); if(b) b.textContent = soundOn?'🔊 音效':'🔈 靜音'; }
+
+/* ============ QR Code（觀眾連結） ============ */
+function makeQR(elId, text, size){
+  const el=document.getElementById(elId); if(!el || typeof QRCode==='undefined') return;
+  el.innerHTML='';
+  new QRCode(el, { text, width:size||220, height:size||220, correctLevel:QRCode.CorrectLevel.M });
+}
+function showQR(){
+  const url=buildViewerLink();
+  document.getElementById('qrUrl').textContent=url;
+  document.getElementById('qrModal').classList.add('show');
+  makeQR('qrImg', url, 220);
+}
+function closeQR(){ document.getElementById('qrModal').classList.remove('show'); }
+
+/* ============ 公告橫幅（透過 brand 同步） ============ */
+function openAnnounce(){
+  if(READONLY) return;
+  const cur=(state.brand&&state.brand.announce)||'';
+  document.getElementById('announceInput').value=cur;
+  document.getElementById('announceModal').classList.add('show');
+  setTimeout(()=>document.getElementById('announceInput').focus(),50);
+}
+function closeAnnounceModal(){ document.getElementById('announceModal').classList.remove('show'); }
+function submitAnnounce(){
+  if(READONLY) return;
+  const v=document.getElementById('announceInput').value.trim();
+  state.brand.announce=v; commit(); closeAnnounceModal();
+}
+function clearAnnounce(){ if(READONLY) return; state.brand.announce=''; commit(); }
+document.getElementById('announceInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); submitAnnounce(); }
+  else if(e.key==='Escape'){ e.preventDefault(); closeAnnounceModal(); }
+});
+
 /* ============ 大螢幕模式 ============ */
-function openBoard(){ window.open(location.pathname + '#board', '_blank'); }
+function openBoard(){ window.open(location.pathname + (location.search||'') + '#board', '_blank'); }
 function applyBoardMode(){
   const on=location.hash==='#board';
   document.body.classList.toggle('board-mode', on);
   document.getElementById('boardExit').classList.toggle('hidden', !on);
-  if(on) curTab='scoreboard';
+  if(on){ curTab='scoreboard';
+    const bq=document.getElementById('boardQR');
+    if(bq && !READONLY){ makeQR('boardQRImg', buildViewerLink(), 96); bq.classList.add('on'); }
+  }
 }
 window.addEventListener('hashchange', applyBoardMode);
 window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines(); });
@@ -1124,6 +1282,7 @@ window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines(
 /* ============ 啟動 ============ */
 applyReadonly();
 if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElementById('evtSub'), c=document.getElementById('crHolder'); if(a)a.readOnly=true; if(b)b.readOnly=true; if(c)c.readOnly=true; }
+updateSoundBtn();
 applyBoardMode();
 render();
 initFirebase();
