@@ -78,16 +78,21 @@ body::before{
 .evt-title:focus,.evt-sub:focus{outline:none; border-color:var(--accent); background:rgba(0,0,0,.25);}
 .spacer{flex:1;}
 
-/* 會徽上傳格 */
-.logo-slot{width:56px; height:56px; border-radius:50%; flex:none; cursor:pointer; overflow:hidden;
-  border:2px dashed var(--line-2); display:flex; align-items:center; justify-content:center; position:relative;
-  background:rgba(255,255,255,.04); transition:.15s; color:var(--muted); font-size:10px; text-align:center; line-height:1.2;}
-.logo-slot:hover{border-color:var(--jci); color:var(--jci);}
-.logo-slot.has-logo{border-style:solid; border-color:var(--jci); background:#fff;}
-.logo-slot img{width:100%; height:100%; object-fit:contain;}
-.logo-slot .x{position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--live);
-  color:#fff; font-size:11px; line-height:18px; text-align:center; display:none;}
-.logo-slot.has-logo:hover .x{display:block;}
+/* 隊徽顯示空間（各隊名稱前的圓形空間；無隊徽時顯示隊名首字） */
+.tlogo{flex:none; width:28px; height:28px; border-radius:50%; overflow:hidden; display:inline-flex;
+  align-items:center; justify-content:center; background:rgba(255,255,255,.06); border:1px solid var(--line-2);
+  font-family:'Oswald',sans-serif; font-weight:700; font-size:13px; color:var(--muted); vertical-align:middle;}
+.tlogo img{width:100%; height:100%; object-fit:cover;}
+.tlogo.lg{width:40px; height:40px; font-size:18px;}
+.tlogo.sm{width:22px; height:22px; font-size:11px;}
+.team-row .tname, .scard .vs-team, .ko-nm{display:inline-flex; align-items:center; gap:9px;}
+body.board-mode .tlogo.lg{width:54px; height:54px; font-size:24px;}
+/* 後台：可點擊設定隊徽網址 */
+.tlogo-edit{position:relative; cursor:pointer; flex:none; line-height:0;}
+.tlogo-edit::after{content:"✎"; position:absolute; right:-3px; bottom:-3px; width:14px; height:14px; border-radius:50%;
+  background:var(--jci); color:#fff; font-size:9px; line-height:14px; text-align:center; opacity:0; transition:.15s;}
+.tlogo-edit:hover::after{opacity:1;}
+.tlogo-edit:hover .tlogo{border-color:var(--jci);}
 
 .tools{display:flex; gap:8px; flex-wrap:wrap;}
 .btn{font-family:'Barlow','Noto Sans TC'; font-weight:600; font-size:13px; color:var(--text); cursor:pointer;
@@ -117,7 +122,6 @@ body.readonly .view-badge{display:inline-flex;}
 body.readonly .viewer-flag{display:inline-flex;}
 body.readonly.board-mode .viewer-flag{top:14px; right:16px; font-size:16px; padding:8px 18px;}
 body.readonly .wbtn,
-body.readonly #logoSlot,
 body.readonly [data-tab="admin"],
 body.readonly #view-admin,
 body.readonly .bracket-tools,
@@ -411,12 +415,6 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     </div>
 
     <div class="spacer"></div>
-
-    <div class="logo-slot" id="logoSlot" title="點擊上傳分會會徽" onclick="onLogoClick(event)">
-      <span class="ph">上傳<br>會徽</span>
-      <span class="x" onclick="clearLogo(event)">×</span>
-    </div>
-    <input id="logoFile" type="file" accept="image/*" class="hidden" onchange="uploadLogo(this.files[0]); this.value='';">
 
     <div class="tools">
       <span class="sync-pill sp-local" id="syncPill">本機模式</span>
@@ -736,7 +734,7 @@ function koSkeleton(){
 }
 function seed(){
   const groups=['A','B','C','D'], teams=[]; let id=1;
-  for(const g of groups) for(let n=1;n<=4;n++){ teams.push({id, name:`${g} 組 第 ${n} 隊`, group:g}); id++; }
+  for(const g of groups) for(let n=1;n<=4;n++){ teams.push({id, name:`${g} 組 第 ${n} 隊`, group:g, logo:''}); id++; }
   const matches=[]; let mid=1, court=0;
   for(const g of groups){
     const ids=teams.filter(t=>t.group===g).map(t=>t.id);
@@ -750,6 +748,7 @@ function seed(){
 function normalize(d){
   if(!(d && Array.isArray(d.teams) && Array.isArray(d.matches) && d.teams.length && d.matches.length)) return null;
   if(!d.brand) d.brand=defaultBrand();
+  d.teams.forEach(t=>{ if(t.logo===undefined) t.logo=''; });
   d.matches.forEach(m=>{ if(!m.stage) m.stage='group'; if(!Array.isArray(m.sets)) m.sets=[]; });
   if(!d.matches.some(m=>m.stage==='ko')) d.matches.push(...koSkeleton());
   return d;
@@ -762,7 +761,7 @@ let state = load() || seed();
 function commit(){
   if(READONLY) return;
   syncBracket();
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ alert('儲存失敗（可能是會徽圖片太大）：'+e.message); }
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ alert('本機儲存失敗：'+e.message); }
   if(useFirebase) pushState();
   else if(channel) channel.postMessage('updated');
   render();
@@ -788,6 +787,18 @@ function updateUndoBtn(){ const b=document.getElementById('undoBtn'); if(b) b.di
 /* ============ 計分邏輯 ============ */
 const find = id => state.matches.find(m=>m.id===id);
 const teamName = id => { const t=state.teams.find(x=>x.id===id); return t? t.name : '—'; };
+// 隊徽顯示空間：有隊徽顯示圖片，否則顯示隊名首字佔位。size: 'sm' | '' | 'lg'
+function teamLogo(id, size){
+  const t = id==null ? null : state.teams.find(x=>x.id===id);
+  const cls = 'tlogo' + (size?(' '+size):'');
+  const ini = (t && t.name) ? t.name.trim().charAt(0).replace(/"/g,'') : '?';
+  if(t && t.logo){
+    const url=String(t.logo).replace(/"/g,'&quot;');
+    // 圖片載入失敗時自動退回顯示首字
+    return `<span class="${cls}"><img src="${url}" alt="" onerror="var p=this.parentNode;p.textContent=this.getAttribute('data-ini');" data-ini="${ini}"></span>`;
+  }
+  return `<span class="${cls}">${ini}</span>`;
+}
 const setsWon = (m,side) => m.sets.filter(s=>s.finished && (side==='home'? s.home>s.away : s.away>s.home)).length;
 // 偵測賽末點/局末點：回傳 {type:'match'|'set', side:'home'|'away'} 或 null（雙方同時則回傳領先方；24-24 之類不算）
 function pointState(m){
@@ -837,6 +848,16 @@ async function resetMatch(id){ if(READONLY) return; const m=find(id); if(!m) ret
   if(!(await askPassword('重設這場比賽，將清空所有比分。'))) return;
   snap(); m.sets=[]; m.currentSet=0; m.status=0; commit(); }
 function renameTeam(tid,name){ if(READONLY) return; const t=state.teams.find(x=>x.id===tid); if(t && name.trim()) t.name=name.trim(); commit(); }
+// 設定隊徽（圖片網址）：輸入網址即顯示，留白則移除。資料只存網址，不內嵌圖片，雲端同步輕巧。
+function setTeamLogo(tid){
+  if(READONLY) return;
+  const t=state.teams.find(x=>x.id===tid); if(!t) return;
+  const url=prompt('輸入「'+t.name+'」的隊徽圖片網址（https://...）：\n留白後按確定可移除隊徽。', t.logo||'');
+  if(url===null) return;                 // 取消
+  const v=url.trim();
+  if(v && !/^https?:\/\//i.test(v)){ alert('請輸入有效的圖片網址（需以 http:// 或 https:// 開頭）。'); return; }
+  t.logo=v; commit();
+}
 
 /* ============ 淘汰賽對戰樹 ============ */
 const roundCN = { QF:'八強', SF:'四強', F:'冠軍戰' };
@@ -963,27 +984,8 @@ function drawBracketLines(){
   svg.innerHTML=d;
 }
 
-/* ============ 品牌（賽事名稱 / 會徽） ============ */
+/* ============ 品牌（賽事名稱） ============ */
 function setBrand(key,val){ if(READONLY) return; state.brand[key]=val; commit(); }
-function onLogoClick(e){ if(READONLY) return; if(e.target.classList.contains('x')) return; document.getElementById('logoFile').click(); }
-function clearLogo(e){ if(READONLY) return; e.stopPropagation(); state.brand.logo=''; commit(); }
-function uploadLogo(file){
-  if(READONLY || !file) return;
-  const r=new FileReader();
-  r.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=240, sc=Math.min(1, max/Math.max(img.width,img.height));
-      const c=document.createElement('canvas');
-      c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      state.brand.logo=c.toDataURL('image/png'); commit();
-    };
-    img.onerror=()=>alert('圖片讀取失敗。');
-    img.src=r.result;
-  };
-  r.readAsDataURL(file);
-}
 
 /* ============ 介面 ============ */
 let curTab='scoreboard', curFilter='all';
@@ -1039,13 +1041,6 @@ function renderBrand(){
   if(!focusedIs('evt-sub')) document.getElementById('evtSub').value=b.subtitle||'';
   document.getElementById('boardTitle').textContent=b.title||'';
   document.getElementById('boardSub').textContent=b.subtitle||'';
-  const slot=document.getElementById('logoSlot');
-  if(b.logo){ slot.classList.add('has-logo'); slot.querySelector('.ph').style.display='none';
-    let im=slot.querySelector('img'); if(!im){ im=document.createElement('img'); slot.insertBefore(im, slot.querySelector('.x')); }
-    im.src=b.logo;
-  } else { slot.classList.remove('has-logo'); slot.querySelector('.ph').style.display='';
-    const im=slot.querySelector('img'); if(im) im.remove();
-  }
   const yr=document.getElementById('crYear'); if(yr) yr.textContent=new Date().getFullYear();
   const cr=document.getElementById('crHolder');
   if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : '龍井國際青年商會';
@@ -1100,13 +1095,13 @@ function renderLive(){
         <span style="margin-left:auto">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}</span>
       </div>
       <div class="team-row">
-        <div class="tname ${homeWin?'win':''}">${teamName(m.homeId)}</div>
+        <div class="tname ${homeWin?'win':''}">${teamLogo(m.homeId,'lg')}${teamName(m.homeId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-hw',hw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ch',ch)}</div>`:''}
         </div>
       </div>
       <div class="team-row">
-        <div class="tname ${awayWin?'win':''}">${teamName(m.awayId)}</div>
+        <div class="tname ${awayWin?'win':''}">${teamLogo(m.awayId,'lg')}${teamName(m.awayId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-aw',aw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ca',ca)}</div>`:''}
         </div>
@@ -1126,8 +1121,8 @@ function renderSchedule(){
       const hw=setsWon(m,'home'), aw=setsWon(m,'away');
       const score = m.status===0 ? `<span class="meta">${m.time}</span>` : `<span class="mini-score">${hw} - ${aw}</span>`;
       return `<div class="scard">
-        <div class="row"><span class="vs-team">${teamName(m.homeId)}</span>${score}</div>
-        <div class="row"><span class="vs-team">${teamName(m.awayId)}</span>
+        <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamName(m.homeId)}</span>${score}</div>
+        <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamName(m.awayId)}</span>
           <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span></div>
         <div class="meta">${m.court} · ${m.time}</div></div>`;
     }).join('');
@@ -1190,10 +1185,12 @@ function renderAdmin(){
         ${live?`<span class="cur-set-tag">第 ${m.currentSet+1} 局</span>`:''}
       </div>
       <div class="side">
+        <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.homeId})">${teamLogo(m.homeId,'sm')}</span>
         <div class="nm"><input class="team-edit" value="${teamName(m.homeId).replace(/"/g,'&quot;')}" onchange="renameTeam(${m.homeId}, this.value)"></div>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-hw',hw)}</div>${stepper('home',ch)}
       </div>
       <div class="side">
+        <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.awayId})">${teamLogo(m.awayId,'sm')}</span>
         <div class="nm"><input class="team-edit" value="${teamName(m.awayId).replace(/"/g,'&quot;')}" onchange="renameTeam(${m.awayId}, this.value)"></div>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-aw',aw)}</div>${stepper('away',ca)}
       </div>
