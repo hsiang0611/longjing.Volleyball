@@ -309,7 +309,20 @@ body.board-mode .lcard{padding:26px;}
   font-family:'Barlow','Noto Sans TC',sans-serif; font-size:14.5px; color:var(--text); position:relative; z-index:1;}
 .announce.show{display:flex;}
 .announce .ann-ico{flex:none; font-size:16px;}
-.announce .ann-text{flex:1; line-height:1.5; word-break:break-word;}
+.announce .ann-track{flex:1; overflow:hidden; position:relative;}
+.announce .ann-text{display:inline-block; line-height:1.5; white-space:nowrap; word-break:normal;}
+/* 文字較長時才捲動的跑馬燈 */
+.announce.marquee .ann-text{padding-left:100%; animation:annScroll linear infinite; animation-duration:var(--ann-dur, 18s);}
+.announce.marquee:hover .ann-text{animation-play-state:paused;}
+@keyframes annScroll{ from{ transform:translateX(0); } to{ transform:translateX(-100%); } }
+@media (prefers-reduced-motion: reduce){ .announce.marquee .ann-text{animation:none; padding-left:0; white-space:normal;} }
+/* 收到新公告時，整條橫幅閃爍三秒提醒 */
+.announce.flash{animation:annFlash 0.6s ease-in-out 5;}
+@keyframes annFlash{
+  0%,100%{ background:linear-gradient(90deg, rgba(255,200,61,.18), rgba(0,156,222,.12)); border-color:rgba(255,200,61,.5); }
+  50%{ background:linear-gradient(90deg, rgba(255,200,61,.55), rgba(255,90,54,.35)); border-color:var(--gold); box-shadow:0 0 18px rgba(255,200,61,.5); }
+}
+@media (prefers-reduced-motion: reduce){ .announce.flash{animation:none;} }
 .announce .ann-x{flex:none; cursor:pointer; color:var(--muted); border:1px solid var(--line-2); border-radius:8px; padding:2px 9px; font-size:13px;}
 .announce .ann-x:hover{color:var(--live); border-color:var(--live);}
 body.readonly .announce .ann-x{display:none;}
@@ -420,7 +433,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 
   <div class="announce" id="announceBar">
     <span class="ann-ico">📢</span>
-    <span class="ann-text" id="announceText"></span>
+    <div class="ann-track"><span class="ann-text" id="announceText"></span></div>
     <span class="ann-x wbtn" onclick="clearAnnounce()">清除</span>
   </div>
 
@@ -1027,7 +1040,31 @@ function renderBrand(){
   if(cr && !focusedIs('cr-holder')) cr.value = (b.copyright && b.copyright.trim()) ? b.copyright : '龍井國際青年商會';
   const annBar=document.getElementById('announceBar'), annTxt=document.getElementById('announceText');
   if(annBar && annTxt){ const msg=(b.announce||'').trim();
-    annTxt.textContent=msg; annBar.classList.toggle('show', !!msg); }
+    annTxt.textContent=msg; annBar.classList.toggle('show', !!msg);
+    if(msg){
+      if(msg!==_annPrev) flashAnnounce(annBar);   // 只在內容真的變動時閃爍
+      requestAnimationFrame(()=>updateMarquee(annBar, annTxt));
+    } else { annBar.classList.remove('marquee'); }
+    _annPrev=msg;
+  }
+}
+// 收到新公告：閃爍三秒（先重置動畫再套用，確保每則新公告都重新觸發）
+let _annPrev=null, _annFlashTimer=null;
+function flashAnnounce(bar){
+  bar.classList.remove('flash'); void bar.offsetWidth; bar.classList.add('flash');
+  if(_annFlashTimer) clearTimeout(_annFlashTimer);
+  _annFlashTimer=setTimeout(()=>bar.classList.remove('flash'), 3100);
+}
+// 文字寬度超過容器才啟用跑馬燈，捲動速度依長度調整（越長越久，維持等速）
+function updateMarquee(bar, txt){
+  const track=txt.parentElement; if(!track) return;
+  bar.classList.remove('marquee');           // 先移除才能量到真實寬度
+  const overflow = txt.scrollWidth > track.clientWidth + 4;
+  if(overflow){
+    const dur = Math.max(8, Math.round((txt.scrollWidth + track.clientWidth) / 60)); // 約 60px/秒
+    bar.style.setProperty('--ann-dur', dur+'s');
+    bar.classList.add('marquee');
+  }
 }
 
 function renderLive(){
@@ -1274,10 +1311,14 @@ function applyBoardMode(){
   if(on){ curTab='scoreboard';
     const bq=document.getElementById('boardQR');
     if(bq && !READONLY){ makeQR('boardQRImg', buildViewerLink(), 96); bq.classList.add('on'); }
+    const ab=document.getElementById('announceBar'), at=document.getElementById('announceText');
+    if(ab && at && ab.classList.contains('show')) requestAnimationFrame(()=>updateMarquee(ab, at));
   }
 }
 window.addEventListener('hashchange', applyBoardMode);
-window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines(); });
+window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines();
+  const ab=document.getElementById('announceBar'), at=document.getElementById('announceText');
+  if(ab && at && ab.classList.contains('show')) updateMarquee(ab, at); });
 
 /* ============ 啟動 ============ */
 applyReadonly();
