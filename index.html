@@ -401,6 +401,18 @@ body.board-mode .board-qr.on{display:block;}
 body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transparent !important; background:transparent !important;}
 .site-footer .ver{color:var(--line-2); font-size:11px; letter-spacing:.04em; margin-left:8px;}
 
+/* ---------- 備份／還原 ---------- */
+.bk-modal{max-width:460px;}
+.bk-saved{color:#2fdf9b; font-weight:600; margin-left:8px; opacity:0; transition:opacity .25s;}
+.bk-list{max-height:300px; overflow-y:auto; margin:6px 0 2px; display:flex; flex-direction:column; gap:7px;}
+.bk-empty{color:var(--muted); font-size:13px; padding:14px 4px; text-align:center;}
+.bk-row{display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.03);}
+.bk-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.bk-info b{font-family:'Oswald','Noto Sans TC',sans-serif; font-size:14px; color:var(--text);}
+.bk-info span{font-size:12px; color:var(--muted);}
+.bk-acts{flex:none; display:flex; gap:6px;}
+.bk-acts .btn{font-size:12px; padding:5px 11px;}
+
 /* ---------- 密碼對話框 ---------- */
 .modal-overlay{ position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
   background:rgba(3,16,30,.72); backdrop-filter:blur(5px); }
@@ -467,6 +479,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
           <button class="btn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
           <button class="btn" onclick="exportJSON()">⬇ 匯出 JSON</button>
           <button class="btn" onclick="document.getElementById('importFile').click()">⬆ 匯入 JSON</button>
+          <button class="btn" onclick="openBackups()">🗄 備份／還原</button>
           <button class="btn warn" onclick="resetAll()">↺ 全部重來</button>
         </div>
       </div>
@@ -609,6 +622,18 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     <div class="m-actions">
       <button class="btn" onclick="closeAnnounceModal()">取消</button>
       <button class="btn go" onclick="submitAnnounce()">發布</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="backupModal" onclick="if(event.target===this) closeBackups()">
+  <div class="modal bk-modal">
+    <h3>🗄 備份／還原</h3>
+    <div class="m-sub">系統每 3 分鐘自動備份到這台裝置（最多保留 12 份）。可隨時還原或下載成檔案。<span id="bkSaved" class="bk-saved">已備份 ✓</span></div>
+    <div class="bk-list" id="backupList"></div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeBackups()">關閉</button>
+      <button class="btn go" onclick="manualBackup()">立即備份</button>
     </div>
   </div>
 </div>
@@ -837,13 +862,16 @@ function updateUndoBtn(){ const b=document.getElementById('undoBtn'); if(b) b.di
 /* ============ 計分邏輯 ============ */
 const find = id => state.matches.find(m=>m.id===id);
 const teamName = id => { const t=state.teams.find(x=>x.id===id); return t? t.name : '—'; };
+// 將任何文字轉義為安全的 HTML 純文字（隊名等使用者輸入都經過這裡，避免特殊符號破壞版面或注入內容）
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const teamNameHTML = id => esc(teamName(id));
 // 隊徽顯示空間：有隊徽顯示圖片，否則顯示隊名首字佔位。size: 'sm' | '' | 'lg'
 function teamLogo(id, size){
   const t = id==null ? null : state.teams.find(x=>x.id===id);
   const cls = 'tlogo' + (size?(' '+size):'');
-  const ini = (t && t.name) ? t.name.trim().charAt(0).replace(/"/g,'') : '?';
+  const ini = esc((t && t.name) ? t.name.trim().charAt(0) : '?');
   if(t && t.logo){
-    const url=String(t.logo).replace(/"/g,'&quot;');
+    const url=esc(t.logo);
     // 圖片載入失敗時自動退回顯示首字
     return `<span class="${cls}"><img src="${url}" alt="" onerror="var p=this.parentNode;p.textContent=this.getAttribute('data-ini');" data-ini="${ini}"></span>`;
   }
@@ -980,7 +1008,7 @@ function koRow(m,side){
   const id = side==='home' ? m.homeId : m.awayId;
   const sw = id==null ? 0 : setsWon(m,side);
   const win = m.status===2 && id!=null && koWinner(m)===id;
-  const nm = id==null ? '<span class="tbd">待定</span>' : (teamLogo(id,'sm')+'<span class="ko-nm-txt">'+teamName(id)+'</span>');
+  const nm = id==null ? '<span class="tbd">待定</span>' : (teamLogo(id,'sm')+'<span class="ko-nm-txt">'+teamNameHTML(id)+'</span>');
   return `<div class="ko-row ${win?'win':''}"><span class="ko-nm">${nm}</span><span class="ko-sets">${flipNum('ko-'+m.id+'-'+side+'s',sw)}</span></div>`;
 }
 function koNode(id){
@@ -1001,7 +1029,7 @@ function champNode(){
   const champ=koWinner(koOf(1007));
   return `<div class="ko-match champ ${champ!=null?'done':''}" data-ko="champ">
     <div class="ko-head">🏆 冠軍</div>
-    <div class="ko-row win"><span class="ko-nm">${champ==null?'<span class="tbd">待定</span>':(teamLogo(champ,'sm')+'<span class="ko-nm-txt">'+teamName(champ)+'</span>')}</span></div>
+    <div class="ko-row win"><span class="ko-nm">${champ==null?'<span class="tbd">待定</span>':(teamLogo(champ,'sm')+'<span class="ko-nm-txt">'+teamNameHTML(champ)+'</span>')}</span></div>
   </div>`;
 }
 function renderBracket(){
@@ -1141,13 +1169,13 @@ function liveCardHTML(m){
         <span class="lcard-right">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
       </div>
       <div class="team-row">
-        <div class="tname ${homeWin?'win':''}">${teamLogo(m.homeId,'lg')}${teamName(m.homeId)}</div>
+        <div class="tname ${homeWin?'win':''}">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-hw',hw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ch',ch)}</div>`:''}
         </div>
       </div>
       <div class="team-row">
-        <div class="tname ${awayWin?'win':''}">${teamLogo(m.awayId,'lg')}${teamName(m.awayId)}</div>
+        <div class="tname ${awayWin?'win':''}">${teamLogo(m.awayId,'lg')}${teamNameHTML(m.awayId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-aw',aw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ca',ca)}</div>`:''}
         </div>
@@ -1196,8 +1224,8 @@ function renderSchedule(){
     const score = m.status===0 ? `<span class="meta">${m.time}</span>` : `<span class="mini-score">${hw} - ${aw}</span>`;
     const sub = schedBy==='court' ? (m.group+' 組 · '+m.time) : (m.court+' · '+m.time);
     return `<div class="scard">
-      <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamName(m.homeId)}</span>${score}</div>
-      <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamName(m.awayId)}</span>
+      <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamNameHTML(m.homeId)}</span>${score}</div>
+      <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamNameHTML(m.awayId)}</span>
         <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span></div>
       <div class="meta">${sub}</div></div>`;
   };
@@ -1220,7 +1248,7 @@ function renderStandings(){
       const fmt=v=>(v>0?'+':'')+v;
       return `<tr class="${top2?'adv':''}">
         <td class="rk">${i+1}</td>
-        <td class="nm">${teamName(t.id)}${top2?'<span class="adv-tag">晉級</span>':''}</td>
+        <td class="nm">${teamNameHTML(t.id)}${top2?'<span class="adv-tag">晉級</span>':''}</td>
         <td>${t.mw}</td><td>${l}</td>
         <td class="${sd>0?'pos':(sd<0?'neg':'')}">${fmt(sd)}</td>
         <td class="${pd>0?'pos':(pd<0?'neg':'')}">${fmt(pd)}</td></tr>`;
@@ -1263,12 +1291,12 @@ function renderAdmin(){
       </div>
       <div class="side">
         <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.homeId})">${teamLogo(m.homeId,'sm')}</span>
-        <div class="nm"><input class="team-edit" value="${teamName(m.homeId).replace(/"/g,'&quot;')}" onchange="renameTeam(${m.homeId}, this.value)"></div>
+        <div class="nm"><input class="team-edit" value="${esc(teamName(m.homeId))}" onchange="renameTeam(${m.homeId}, this.value)"></div>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-hw',hw)}</div>${stepper('home',ch)}
       </div>
       <div class="side">
         <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.awayId})">${teamLogo(m.awayId,'sm')}</span>
-        <div class="nm"><input class="team-edit" value="${teamName(m.awayId).replace(/"/g,'&quot;')}" onchange="renameTeam(${m.awayId}, this.value)"></div>
+        <div class="nm"><input class="team-edit" value="${esc(teamName(m.awayId))}" onchange="renameTeam(${m.awayId}, this.value)"></div>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-aw',aw)}</div>${stepper('away',ca)}
       </div>
       ${m.sets.length?`<div class="sets-chips">${chips}</div>`:''}
@@ -1293,6 +1321,66 @@ function importJSON(file){
     catch(e){ alert('讀取失敗：'+e.message); } };
   r.readAsText(file,'utf-8');
 }
+
+/* ============ 自動備份保險 ============ */
+const BACKUP_KEY='vb_jci_backups_v1', BACKUP_MAX=12, BACKUP_INTERVAL=180000; // 每 3 分鐘
+function loadBackups(){ try{ const a=JSON.parse(localStorage.getItem(BACKUP_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveBackup(manual){
+  if(READONLY) return false;
+  let json; try{ json=JSON.stringify({teams:state.teams, matches:state.matches, brand:state.brand}); }catch(e){ return false; }
+  const list=loadBackups();
+  if(!manual && list.length && list[list.length-1].data===json) return false; // 內容沒變就不重複存
+  list.push({ t:Date.now(), data:json });
+  while(list.length>BACKUP_MAX) list.shift();
+  try{ localStorage.setItem(BACKUP_KEY, JSON.stringify(list)); }catch(e){
+    // 空間不足時，丟掉一半舊備份再試一次
+    try{ const half=list.slice(Math.floor(list.length/2)); localStorage.setItem(BACKUP_KEY, JSON.stringify(half)); }catch(e2){ return false; }
+  }
+  return true;
+}
+function backupSummary(data){
+  try{ const d=JSON.parse(data);
+    const done=d.matches.filter(m=>m.status===2).length, live=d.matches.filter(m=>m.status===1).length;
+    return `${d.teams.length} 隊 · 已完成 ${done} 場${live?' · 進行中 '+live:''}`;
+  }catch(e){ return '—'; }
+}
+function fmtTime(t){ const d=new Date(t); const p=n=>String(n).padStart(2,'0');
+  return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function openBackups(){
+  if(READONLY) return;
+  renderBackups();
+  document.getElementById('backupModal').classList.add('show');
+}
+function closeBackups(){ document.getElementById('backupModal').classList.remove('show'); }
+function renderBackups(){
+  const box=document.getElementById('backupList'); if(!box) return;
+  const list=loadBackups().slice().reverse();
+  if(!list.length){ box.innerHTML='<div class="bk-empty">尚無備份。系統每 3 分鐘自動備份一次，或按「立即備份」。</div>'; return; }
+  box.innerHTML=list.map(b=>`<div class="bk-row">
+    <div class="bk-info"><b>${fmtTime(b.t)}</b><span>${esc(backupSummary(b.data))}</span></div>
+    <div class="bk-acts">
+      <button class="btn" onclick="downloadBackup(${b.t})">下載</button>
+      <button class="btn go" onclick="restoreBackup(${b.t})">還原</button>
+    </div></div>`).join('');
+}
+function manualBackup(){ const ok=saveBackup(true); renderBackups(); if(ok) flashBackupSaved(); }
+function flashBackupSaved(){ const el=document.getElementById('bkSaved'); if(!el) return; el.style.opacity='1'; setTimeout(()=>el.style.opacity='0',1500); }
+function restoreBackup(t){
+  if(READONLY) return;
+  const b=loadBackups().find(x=>x.t===t); if(!b) return;
+  if(!confirm('還原這份備份（'+fmtTime(t)+'）？目前的比分將被覆蓋（還原前會自動先備份一次）。')) return;
+  saveBackup(true);                       // 還原前先保住現況
+  try{ const d=normalize(JSON.parse(b.data)); if(!d){ alert('備份資料毀損，無法還原。'); return; }
+    snap(); state=d; commit(); closeBackups(); alert('已還原至 '+fmtTime(t)+' 的備份。');
+  }catch(e){ alert('還原失敗：'+e.message); }
+}
+function downloadBackup(t){
+  const b=loadBackups().find(x=>x.t===t); if(!b) return;
+  const blob=new Blob([b.data], {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='tournament-backup-'+t+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+
 async function resetAll(){
   if(READONLY) return;
   if(!(await askPassword('清除全部資料並重新產生 16 隊預設賽程，此動作無法復原（建議先匯出備份）。'))) return;
@@ -1424,6 +1512,7 @@ if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElement
   document.title = '〔觀眾〕' + document.title; }
 updateSoundBtn();
 (function(){ const v=document.getElementById('verStamp'); if(v) v.textContent=APP_VERSION; })();
+if(!READONLY){ saveBackup(); setInterval(()=>saveBackup(), BACKUP_INTERVAL); }
 applyBoardMode();
 render();
 initFirebase();
