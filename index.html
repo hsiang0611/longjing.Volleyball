@@ -95,6 +95,13 @@ body.board-mode .tlogo.lg{width:54px; height:54px; font-size:24px;}
 .tlogo-edit:hover .tlogo{border-color:var(--jci);}
 
 .tools{display:flex; gap:8px; flex-wrap:wrap;}
+.more-wrap{position:relative; display:inline-block;}
+.tool-menu{display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:95; background:var(--panel);
+  border:1px solid var(--line-2); border-radius:12px; padding:6px; box-shadow:0 12px 30px rgba(0,0,0,.5);
+  min-width:172px; flex-direction:column; gap:4px;}
+.more-wrap.open .tool-menu{display:flex;}
+.tool-menu .btn{display:flex; width:100%; justify-content:flex-start; border-color:transparent; background:transparent;}
+.tool-menu .btn:hover{border-color:var(--line-2); background:rgba(255,255,255,.05);}
 .btn{font-family:'Barlow','Noto Sans TC'; font-weight:600; font-size:13px; color:var(--text); cursor:pointer;
   background:var(--bg-3); border:1px solid var(--line-2); border-radius:10px; padding:8px 13px; transition:.15s;}
 .btn:hover{border-color:var(--jci); color:var(--jci);}
@@ -148,6 +155,30 @@ body.readonly .evt-title, body.readonly .evt-sub{pointer-events:none; border-col
 
 /* 即時比數卡 */
 .live-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px;}
+.live-sec-title{font-family:'Oswald','Noto Sans TC',sans-serif; font-weight:600; font-size:14px; letter-spacing:.06em;
+  color:var(--text); margin:6px 0 10px; display:flex; align-items:center; gap:9px;}
+.live-sec-title .cnt{background:var(--live); color:#fff; font-size:12px; font-weight:700; min-width:20px; text-align:center;
+  border-radius:999px; padding:1px 7px;}
+.live-sec-title.sub{color:var(--muted); font-size:13px; margin-top:20px;}
+.proj-btn{font-size:11px !important; padding:3px 9px !important;}
+.lcard-right{display:inline-flex; align-items:center; gap:10px; margin-left:auto;}
+/* 賽程：依組別/依場地 切換 */
+#schedTitle{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+.sched-toggle{display:inline-flex; border:1px solid var(--line-2); border-radius:999px; overflow:hidden;}
+.sched-toggle .seg{font-family:'Barlow','Noto Sans TC',sans-serif; font-size:12px; color:var(--muted); background:transparent;
+  border:none; padding:5px 13px; cursor:pointer;}
+.sched-toggle .seg.active{background:var(--jci); color:#fff;}
+body.readonly #schedToggle{display:inline-flex;}
+/* 單場全螢幕投影 */
+body.board-single .live-grid.single{grid-template-columns:1fr; max-width:1080px; margin:0 auto;}
+body.board-single .lcard{padding:44px;}
+body.board-single .tname{font-size:48px;}
+body.board-single .tscore{font-size:128px; min-width:160px;}
+body.board-single .tscore.cur{color:var(--jci);}
+body.board-single .tlogo.lg{width:84px; height:84px; font-size:38px;}
+body.board-single .sets-chips .chip{font-size:22px; padding:6px 12px;}
+body.board-single .lcard-top{font-size:18px; margin-bottom:24px;}
+body.board-mode .live-sec-title{font-size:20px;}
 .lcard{background:linear-gradient(160deg, var(--bg-2), var(--panel)); border:1px solid var(--line); border-radius:var(--radius);
   padding:18px; box-shadow:var(--shadow); position:relative; overflow:hidden;}
 .lcard::after{content:""; position:absolute; right:-22px; top:-22px; width:96px; height:96px; opacity:.08;
@@ -364,6 +395,7 @@ body.board-mode .board-qr.on{display:block;}
 .site-footer .cr-holder:hover{border-color:var(--line);}
 .site-footer .cr-holder:focus{outline:none; border-color:var(--jci); background:rgba(0,0,0,.25);}
 body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transparent !important; background:transparent !important;}
+.site-footer .ver{color:var(--line-2); font-size:11px; letter-spacing:.04em; margin-left:8px;}
 
 /* ---------- 密碼對話框 ---------- */
 .modal-overlay{ position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
@@ -419,17 +451,22 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 
     <div class="tools">
       <span class="sync-pill sp-local" id="syncPill">本機模式</span>
-      <button class="btn wbtn" id="loginBtn" onclick="loginClick()" style="display:none">🔑 計分台登入</button>
       <button class="btn wbtn" id="undoBtn" onclick="undo()" disabled>↶ 復原</button>
-      <button class="btn wbtn" onclick="copyViewerLink()">🔗 觀眾連結</button>
       <button class="btn" onclick="showQR()">📱 QR</button>
-      <button class="btn wbtn" onclick="openAnnounce()">📢 公告</button>
-      <button class="btn wbtn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
       <button class="btn" onclick="openBoard()">🔲 大螢幕</button>
-      <button class="btn" onclick="exportJSON()">⬇ 匯出 JSON</button>
-      <button class="btn wbtn" onclick="document.getElementById('importFile').click()">⬆ 匯入 JSON</button>
+      <div class="more-wrap wbtn">
+        <button class="btn" onclick="toggleToolMenu()">⚙ 更多</button>
+        <div class="tool-menu" id="toolMenu">
+          <button class="btn" id="loginBtn" onclick="loginClick()" style="display:none">🔑 計分台登入</button>
+          <button class="btn" onclick="copyViewerLink()">🔗 觀眾連結</button>
+          <button class="btn" onclick="openAnnounce()">📢 公告</button>
+          <button class="btn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
+          <button class="btn" onclick="exportJSON()">⬇ 匯出 JSON</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()">⬆ 匯入 JSON</button>
+          <button class="btn warn" onclick="resetAll()">↺ 全部重來</button>
+        </div>
+      </div>
       <input id="importFile" type="file" accept="application/json,.json" class="hidden" onchange="importJSON(this.files[0]); this.value='';">
-      <button class="btn warn wbtn" onclick="resetAll()">↺ 全部重來</button>
     </div>
   </div>
 </header>
@@ -468,9 +505,15 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
       <svg class="vb" viewBox="0 0 24 24" fill="none" stroke="var(--jci)" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2c-4 5-4 15 0 20"/><path d="M12 2c4 5 4 15 0 20"/></svg>
       即時比數
     </div>
-    <div id="live" class="live-grid"></div>
+    <div id="live"></div>
     <div id="schedule-wrap">
-      <div class="section-title">完整賽程</div>
+      <div class="section-title" id="schedTitle">
+        <span>完整賽程</span>
+        <span class="sched-toggle" id="schedToggle">
+          <button class="seg active" data-by="group" onclick="setSchedBy('group')">依組別</button>
+          <button class="seg" data-by="court" onclick="setSchedBy('court')">依場地</button>
+        </span>
+      </div>
       <div id="schedule"></div>
     </div>
   </section>
@@ -531,6 +574,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     <span id="crYear"></span>
     <input class="cr-holder" id="crHolder" placeholder="版權所有單位" value="" onchange="setBrand('copyright', this.value)">
     <span>．版權所有　All rights reserved.</span>
+    <span class="ver" id="verStamp"></span>
   </footer>
 </div>
 
@@ -596,6 +640,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 <script>
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
+const APP_VERSION = 'v1.0 · 2026-06-03';
 const RULES = { setsToWin:3, regular:25, deciding:15, margin:2 };
 const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_scoreboard') : null;
 
@@ -1074,26 +1119,22 @@ function updateMarquee(bar, txt){
   }
 }
 
-function renderLive(){
-  const box=document.getElementById('live');
-  const live=state.matches.filter(m=>m.status===1);
-  const recent=state.matches.filter(m=>m.status===2).slice(-3).reverse();
-  const show=[...live, ...recent];
-  if(show.length===0){ box.innerHTML=`<div class="empty">${VB_ICON}目前沒有進行中的比賽。<br>到「後台計分」按「開始」即可開賽。</div>`; return; }
-  box.innerHTML = show.map(m=>{
-    const hw=setsWon(m,'home'), aw=setsWon(m,'away');
-    const cs=m.sets[m.currentSet]; const ch=cs?cs.home:0, ca=cs?cs.away:0;
-    const homeWin=m.status===2&&hw>aw, awayWin=m.status===2&&aw>hw;
-    const ps=pointState(m);
-    const psBadge = ps ? `<span class="badge ${ps.type==='match'?'s-mpoint':'s-point'}">${ps.type==='match'?'賽末點':'局末點'}</span>` : '';
-    const chips=m.sets.map((s,i)=>`<span class="chip">局${i+1} <b>${s.home}-${s.away}</b></span>`).join('');
-    return `<div class="lcard ${m.status===1?'live':''}">
+function liveCardHTML(m){
+  const hw=setsWon(m,'home'), aw=setsWon(m,'away');
+  const cs=m.sets[m.currentSet]; const ch=cs?cs.home:0, ca=cs?cs.away:0;
+  const homeWin=m.status===2&&hw>aw, awayWin=m.status===2&&aw>hw;
+  const ps=pointState(m);
+  const psBadge = ps ? `<span class="badge ${ps.type==='match'?'s-mpoint':'s-point'}">${ps.type==='match'?'賽末點':'局末點'}</span>` : '';
+  const chips=m.sets.map((s,i)=>`<span class="chip">局${i+1} <b>${s.home}-${s.away}</b></span>`).join('');
+  const onBoard = document.body.classList.contains('board-mode');
+  const projBtn = (!READONLY && !onBoard) ? `<button class="btn proj-btn" onclick="openBoardMatch(${m.id})" title="單場全螢幕投影">📺 投影這場</button>` : '';
+  return `<div class="lcard ${m.status===1?'live':''}">
       <div class="lcard-top">
         <span class="badge ${m.stage==='ko'?'ko':'group'}">${labelOf(m)}</span>
         <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span>
         ${psBadge}
         ${m.status===1?'<span class="spin-ball" aria-hidden="true"></span>':''}
-        <span style="margin-left:auto">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}</span>
+        <span class="lcard-right">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
       </div>
       <div class="team-row">
         <div class="tname ${homeWin?'win':''}">${teamLogo(m.homeId,'lg')}${teamName(m.homeId)}</div>
@@ -1109,26 +1150,57 @@ function renderLive(){
       </div>
       ${m.sets.length?`<div class="sets-chips">${chips}</div>`:''}
     </div>`;
-  }).join('');
+}
+function renderLive(){
+  const box=document.getElementById('live');
+  // 單場全螢幕投影
+  if(document.body.classList.contains('board-mode') && boardMatchId!=null){
+    const m=find(boardMatchId);
+    box.innerHTML = m ? `<div class="live-grid single">${liveCardHTML(m)}</div>`
+                      : `<div class="empty">${VB_ICON}找不到指定的比賽。</div>`;
+    return;
+  }
+  const live=state.matches.filter(m=>m.status===1);
+  const recent=state.matches.filter(m=>m.status===2).slice(-3).reverse();
+  let html='';
+  if(live.length){
+    html += `<div class="live-sec-title">現在比賽 <span class="cnt">${live.length}</span></div>`
+          + `<div class="live-grid">${live.map(liveCardHTML).join('')}</div>`;
+  } else {
+    html += `<div class="empty">${VB_ICON}目前沒有進行中的比賽。<br>到「後台計分」按「開始」即可開賽。</div>`;
+  }
+  if(recent.length){
+    html += `<div class="live-sec-title sub">最近結果</div>`
+          + `<div class="live-grid">${recent.map(liveCardHTML).join('')}</div>`;
+  }
+  box.innerHTML = html;
 }
 
+let schedBy='group';
+function setSchedBy(by){ schedBy=by;
+  document.querySelectorAll('#schedToggle .seg').forEach(b=>b.classList.toggle('active', b.dataset.by===by));
+  renderSchedule();
+}
 function renderSchedule(){
   const box=document.getElementById('schedule');
   const gm=state.matches.filter(m=>m.stage!=='ko');
-  const groups=[...new Set(gm.map(m=>m.group))];
-  box.innerHTML = groups.map(g=>{
-    const ms=gm.filter(m=>m.group===g);
-    const cards=ms.map(m=>{
-      const hw=setsWon(m,'home'), aw=setsWon(m,'away');
-      const score = m.status===0 ? `<span class="meta">${m.time}</span>` : `<span class="mini-score">${hw} - ${aw}</span>`;
-      return `<div class="scard">
-        <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamName(m.homeId)}</span>${score}</div>
-        <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamName(m.awayId)}</span>
-          <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span></div>
-        <div class="meta">${m.court} · ${m.time}</div></div>`;
-    }).join('');
-    return `<div class="group-block"><div class="section-title" style="margin-top:14px">${g} 組</div>
-      <div class="sched-grid">${cards}</div></div>`;
+  const keyOf = m => schedBy==='court' ? (m.court||'未指定場地') : m.group;
+  const label = k => schedBy==='court' ? k : (k+' 組');
+  const keys=[...new Set(gm.map(keyOf))].sort();
+  const card = m => {
+    const hw=setsWon(m,'home'), aw=setsWon(m,'away');
+    const score = m.status===0 ? `<span class="meta">${m.time}</span>` : `<span class="mini-score">${hw} - ${aw}</span>`;
+    const sub = schedBy==='court' ? (m.group+' 組 · '+m.time) : (m.court+' · '+m.time);
+    return `<div class="scard">
+      <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamName(m.homeId)}</span>${score}</div>
+      <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamName(m.awayId)}</span>
+        <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span></div>
+      <div class="meta">${sub}</div></div>`;
+  };
+  box.innerHTML = keys.map(k=>{
+    const ms=gm.filter(m=>keyOf(m)===k);
+    return `<div class="group-block"><div class="section-title" style="margin-top:14px">${label(k)}</div>
+      <div class="sched-grid">${ms.map(card).join('')}</div></div>`;
   }).join('');
 }
 
@@ -1311,11 +1383,24 @@ document.getElementById('announceInput').addEventListener('keydown', e=>{
   else if(e.key==='Escape'){ e.preventDefault(); closeAnnounceModal(); }
 });
 
+/* ============ 工具列「更多」選單 ============ */
+function toggleToolMenu(){ const w=document.querySelector('.more-wrap'); if(w) w.classList.toggle('open'); }
+document.addEventListener('click', e=>{
+  const w=document.querySelector('.more-wrap'); if(!w) return;
+  if(!w.contains(e.target)) w.classList.remove('open');               // 點外面關閉
+  else if(e.target.closest('#toolMenu .btn')) w.classList.remove('open'); // 點選單項目後關閉
+});
+
 /* ============ 大螢幕模式 ============ */
+let boardMatchId=null;
 function openBoard(){ window.open(location.pathname + (location.search||'') + '#board', '_blank'); }
+function openBoardMatch(id){ window.open(location.pathname + (location.search||'') + '#board=' + id, '_blank'); }
 function applyBoardMode(){
-  const on=location.hash==='#board';
+  const h=location.hash||'';
+  const on = h==='#board' || h.indexOf('#board=')===0;
+  boardMatchId = h.indexOf('#board=')===0 ? (parseInt(h.slice(7),10) || null) : null;
   document.body.classList.toggle('board-mode', on);
+  document.body.classList.toggle('board-single', on && boardMatchId!=null);
   document.getElementById('boardExit').classList.toggle('hidden', !on);
   if(on){ curTab='scoreboard';
     const bq=document.getElementById('boardQR');
@@ -1324,7 +1409,7 @@ function applyBoardMode(){
     if(ab && at && ab.classList.contains('show')) requestAnimationFrame(()=>updateMarquee(ab, at));
   }
 }
-window.addEventListener('hashchange', applyBoardMode);
+window.addEventListener('hashchange', ()=>{ applyBoardMode(); render(); });
 window.addEventListener('resize', ()=>{ if(curTab==='bracket') drawBracketLines();
   const ab=document.getElementById('announceBar'), at=document.getElementById('announceText');
   if(ab && at && ab.classList.contains('show')) updateMarquee(ab, at); });
@@ -1334,6 +1419,7 @@ applyReadonly();
 if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElementById('evtSub'), c=document.getElementById('crHolder'); if(a)a.readOnly=true; if(b)b.readOnly=true; if(c)c.readOnly=true;
   document.title = '〔觀眾〕' + document.title; }
 updateSoundBtn();
+(function(){ const v=document.getElementById('verStamp'); if(v) v.textContent=APP_VERSION; })();
 applyBoardMode();
 render();
 initFirebase();
