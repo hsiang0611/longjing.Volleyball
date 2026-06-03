@@ -85,7 +85,7 @@ body::before{
 .tlogo img{width:100%; height:100%; object-fit:cover;}
 .tlogo.lg{width:40px; height:40px; font-size:18px;}
 .tlogo.sm{width:22px; height:22px; font-size:11px;}
-.team-row .tname, .scard .vs-team, .ko-nm{display:inline-flex; align-items:center; gap:9px;}
+.team-row .tname, .scard .vs-team{display:inline-flex; align-items:center; gap:9px;}
 body.board-mode .tlogo.lg{width:54px; height:54px; font-size:24px;}
 /* 後台：可點擊設定隊徽網址 */
 .tlogo-edit{position:relative; cursor:pointer; flex:none; line-height:0;}
@@ -259,7 +259,8 @@ body.readonly .evt-title, body.readonly .evt-sub{pointer-events:none; border-col
 .ko-match.champ .ko-head{color:var(--gold);}
 .ko-row{display:flex; align-items:center; gap:8px; padding:5px 0;}
 .ko-row+.ko-row{border-top:1px dashed var(--line);}
-.ko-nm{font-family:'Oswald','Noto Sans TC',sans-serif; font-weight:600; font-size:15px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ko-nm{font-family:'Oswald','Noto Sans TC',sans-serif; font-weight:600; font-size:15px; flex:1; min-width:0; display:flex; align-items:center; gap:7px;}
+.ko-nm-txt{min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .ko-row.win .ko-nm{color:var(--gold);}
 .ko-sets{font-family:'Oswald',sans-serif; font-weight:700; font-size:17px; color:var(--text); min-width:18px; text-align:right;}
 .tbd{color:var(--muted); font-style:italic; font-weight:500;}
@@ -930,7 +931,7 @@ function koRow(m,side){
   const id = side==='home' ? m.homeId : m.awayId;
   const sw = id==null ? 0 : setsWon(m,side);
   const win = m.status===2 && id!=null && koWinner(m)===id;
-  const nm = id==null ? '<span class="tbd">待定</span>' : teamName(id);
+  const nm = id==null ? '<span class="tbd">待定</span>' : (teamLogo(id,'sm')+'<span class="ko-nm-txt">'+teamName(id)+'</span>');
   return `<div class="ko-row ${win?'win':''}"><span class="ko-nm">${nm}</span><span class="ko-sets">${flipNum('ko-'+m.id+'-'+side+'s',sw)}</span></div>`;
 }
 function koNode(id){
@@ -951,7 +952,7 @@ function champNode(){
   const champ=koWinner(koOf(1007));
   return `<div class="ko-match champ ${champ!=null?'done':''}" data-ko="champ">
     <div class="ko-head">🏆 冠軍</div>
-    <div class="ko-row win"><span class="ko-nm">${champ==null?'<span class="tbd">待定</span>':teamName(champ)}</span></div>
+    <div class="ko-row win"><span class="ko-nm">${champ==null?'<span class="tbd">待定</span>':(teamLogo(champ,'sm')+'<span class="ko-nm-txt">'+teamName(champ)+'</span>')}</span></div>
   </div>`;
 }
 function renderBracket(){
