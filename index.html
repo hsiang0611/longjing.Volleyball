@@ -231,6 +231,10 @@ body.board-mode .live-sec-title{font-size:20px;}
 .side input.team-edit:hover{border-color:var(--line);}
 .side input.team-edit:focus{outline:none; border-color:var(--jci); background:rgba(0,0,0,.25);}
 .stepper{display:flex; align-items:center; gap:8px;}
+/* 手機：避免快速點按（尤其計分 +/−）觸發瀏覽器「雙擊放大頁面」；同時消除點按灰底與誤選文字。
+   仍保留頁面其他處的雙指縮放，方便觀眾放大看比分。 */
+button, .btn, .sbtn, .seg, .tab, .tlogo-edit, .ann-x{ touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.btn, .sbtn, .seg, .tab{ -webkit-user-select:none; user-select:none; }
 .sbtn{width:38px; height:38px; border-radius:10px; border:1px solid var(--line-2); background:var(--bg-3); color:var(--text);
   font-size:20px; font-weight:700; cursor:pointer; transition:.12s; display:flex; align-items:center; justify-content:center;}
 .sbtn:hover{border-color:var(--jci); color:var(--jci);}
