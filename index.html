@@ -96,9 +96,9 @@ body.board-mode .tlogo.lg{width:54px; height:54px; font-size:24px;}
 
 .tools{display:flex; gap:8px; flex-wrap:wrap;}
 .more-wrap{position:relative; display:inline-block;}
-.tool-menu{display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:95; background:var(--panel);
+.tool-menu{display:none; position:fixed; z-index:130; background:var(--panel);
   border:1px solid var(--line-2); border-radius:12px; padding:6px; box-shadow:0 12px 30px rgba(0,0,0,.5);
-  min-width:172px; flex-direction:column; gap:4px;}
+  min-width:172px; max-width:240px; max-height:calc(100vh - 80px); overflow-y:auto; flex-direction:column; gap:4px;}
 .more-wrap.open .tool-menu{display:flex;}
 .tool-menu .btn{display:flex; width:100%; justify-content:flex-start; border-color:transparent; background:transparent;}
 .tool-menu .btn:hover{border-color:var(--line-2); background:rgba(255,255,255,.05);}
@@ -1476,12 +1476,31 @@ document.getElementById('announceInput').addEventListener('keydown', e=>{
 });
 
 /* ============ 工具列「更多」選單 ============ */
-function toggleToolMenu(){ const w=document.querySelector('.more-wrap'); if(w) w.classList.toggle('open'); }
+function toggleToolMenu(){
+  const w=document.querySelector('.more-wrap'); if(!w) return;
+  const opening=!w.classList.contains('open');
+  w.classList.toggle('open');
+  if(opening) positionToolMenu();
+}
+function positionToolMenu(){
+  const w=document.querySelector('.more-wrap'); if(!w) return;
+  const menu=document.getElementById('toolMenu'), btn=w.querySelector('button');
+  if(!menu||!btn) return;
+  const r=btn.getBoundingClientRect(), m=8;
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const mw=menu.offsetWidth||180, mh=menu.offsetHeight||0;
+  let left = r.right - mw;                                   // 右緣對齊齒輪
+  left = Math.max(m, Math.min(left, vw - m - mw));           // 夾在畫面左右邊內
+  let top = r.bottom + 6;
+  if(top + mh > vh - m && r.top - mh - 6 > m) top = r.top - mh - 6;  // 下方不夠就往上開
+  menu.style.left=left+'px'; menu.style.top=top+'px'; menu.style.right='auto';
+}
 document.addEventListener('click', e=>{
   const w=document.querySelector('.more-wrap'); if(!w) return;
   if(!w.contains(e.target)) w.classList.remove('open');               // 點外面關閉
   else if(e.target.closest('#toolMenu .btn')) w.classList.remove('open'); // 點選單項目後關閉
 });
+window.addEventListener('resize', ()=>{ const w=document.querySelector('.more-wrap'); if(w) w.classList.remove('open'); });
 
 /* ============ 大螢幕模式 ============ */
 let boardMatchId=null;
