@@ -432,9 +432,31 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 .modal .m-actions .btn{ flex:1; text-align:center; padding:11px; }
 .modal .m-actions .btn.go{ background:rgba(0,156,222,.16); border-color:rgba(0,156,222,.5); color:var(--jci); }
 
-@media(max-width:520px){
+@media(max-width:600px){
+  .wrap{padding:0 12px 64px;}
+  .topbar-inner{padding:10px 12px; gap:10px;}
+  .emblem{height:42px; width:128px;}
+  .titles{min-width:0;}
+  .evt-title{font-size:18px;}
+  .evt-sub{font-size:10px; letter-spacing:.12em;}
+  .tabs{gap:6px; margin:16px 0 8px;}
+  .tab{font-size:13px; padding:8px 11px;}
+  .tab .vb{display:none;}                 /* 小螢幕隱藏分頁圖示，省空間 */
+  .section-title{font-size:13px;}
   .live-grid,.admin-grid,.sched-grid{grid-template-columns:1fr;}
-  .evt-title{font-size:19px;}
+  .lcard{padding:14px;}
+  .tname{font-size:17px;}
+  .tscore{font-size:34px; min-width:46px;}
+  .tlogo.lg{width:32px; height:32px; font-size:15px;}
+  .sbtn{width:44px; height:44px; font-size:22px;}   /* 手機觸控目標加大、好按 */
+  .snum{font-size:28px; min-width:42px;}
+  .viewer-flag{top:8px; right:8px; font-size:12px; padding:4px 10px;}
+  .site-footer{font-size:11.5px;}
+}
+@media(max-width:380px){
+  .evt-title{font-size:16px;}
+  .tab{font-size:12px; padding:7px 9px;}
+  .tscore{font-size:30px;}
 }
 </style>
 </head>
@@ -669,7 +691,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 <script>
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
-const APP_VERSION = 'v1.0 · 2026-06-03';
+const APP_VERSION = 'v1.0 · 2026-06-05';
 const RULES = { setsToWin:3, regular:25, deciding:15, margin:2 };
 const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_scoreboard') : null;
 
