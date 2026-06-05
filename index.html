@@ -351,6 +351,20 @@ body.board-mode .flap .leaf{ box-shadow:0 .04em .14em rgba(0,0,0,.55); }
 body.board-mode .flap.go .leaf.top{ animation-duration:.58s; }
 body.board-mode .flap.go .leaf.bottom{ animation-duration:.5s; animation-delay:.32s; }
 @media (prefers-reduced-motion: reduce){ .tscore.score-pop{ animation:none !important; } }
+
+/* 得分煙火（隊名上方） */
+.team-row .tname{ position:relative; }
+.fx-burst{ position:absolute; left:50%; top:-2px; width:0; height:0; pointer-events:none; z-index:6; }
+.fx-burst i{ position:absolute; left:0; top:0; border-radius:50%; background:var(--c,#ffc83d);
+  box-shadow:0 0 6px var(--c,#ffc83d); opacity:1;
+  transform:translate(-50%,-50%) scale(.6);
+  animation:fxfly var(--d,1s) cubic-bezier(.15,.6,.3,1) forwards; }
+@keyframes fxfly{
+  0%{ transform:translate(-50%,-50%) scale(.5); opacity:1; }
+  18%{ opacity:1; }
+  100%{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.25); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce){ .fx-burst{ display:none !important; } }
 @media(max-width:520px){ .cols{gap:30px;} .ko-round{min-width:168px;} }
 
 /* 大螢幕模式 */
@@ -1162,9 +1176,38 @@ function applyFlips(){
       const sc = el.closest ? el.closest('.tscore') : null;
       if(sc){ sc.classList.remove('score-pop'); void sc.offsetWidth; sc.classList.add('score-pop');
         setTimeout(()=>sc.classList.remove('score-pop'), 800); }
+      // 得分煙火：僅在「即時比數」分數往上跳時，於該隊隊名上方爆發
+      const mm = /^lv-(\d+)-(ch|ca|hw|aw)$/.exec(k);
+      if(mm && Number(v) > Number(prev)){
+        const side = (mm[2]==='ch'||mm[2]==='hw') ? 'home' : 'away';
+        const big = (mm[2]==='hw'||mm[2]==='aw');     // 得局/得勝 → 較大束
+        const tn = document.querySelector('.tname[data-tn="'+mm[1]+'-'+side+'"]');
+        if(tn) launchFireworks(tn, big);
+      }
     }
     flipPrev[k]=v;
   });
+}
+// 純 CSS/JS 粒子煙火（不需圖檔），約 1 秒後自動移除
+function launchFireworks(tnameEl, big){
+  if(!tnameEl || flapReduce) return;
+  const onBoard=document.body.classList.contains('board-mode');
+  const N=(big?24:14)+(onBoard?8:0);
+  const baseR=(big?108:60)*(onBoard?1.7:1);
+  const colors=['#ffc83d','#009cde','#ff3b5c','#2fdf9b','#ff7a18','#ffffff'];
+  const layer=document.createElement('span'); layer.className='fx-burst';
+  for(let i=0;i<N;i++){
+    const a=(Math.PI*2*i/N)+(Math.random()*0.5-0.25);
+    const r=baseR*(0.6+Math.random()*0.5);
+    const dx=Math.cos(a)*r, dy=Math.sin(a)*r - r*0.18;     // 略微上偏，像往上綻放
+    const sz=(big?9:7)*(onBoard?1.5:1)*(0.7+Math.random()*0.6);
+    const p=document.createElement('i');
+    p.style.cssText='--dx:'+dx.toFixed(0)+'px;--dy:'+dy.toFixed(0)+'px;--c:'+colors[i%colors.length]
+      +';--d:'+(big?1.2:0.95)+'s;width:'+sz.toFixed(0)+'px;height:'+sz.toFixed(0)+'px;';
+    layer.appendChild(p);
+  }
+  tnameEl.appendChild(layer);
+  setTimeout(()=>layer.remove(), big?1350:1050);
 }
 function focusedIs(cls){ const a=document.activeElement; return a && a.classList && a.classList.contains(cls); }
 function adminFocused(){ return focusedIs('team-edit'); }
@@ -1225,13 +1268,13 @@ function liveCardHTML(m){
         <span class="lcard-right">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
       </div>
       <div class="team-row">
-        <div class="tname ${homeWin?'win':''}">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}</div>
+        <div class="tname ${homeWin?'win':''}" data-tn="${m.id}-home">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-hw',hw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ch',ch)}</div>`:''}
         </div>
       </div>
       <div class="team-row">
-        <div class="tname ${awayWin?'win':''}">${teamLogo(m.awayId,'lg')}${teamNameHTML(m.awayId)}</div>
+        <div class="tname ${awayWin?'win':''}" data-tn="${m.id}-away">${teamLogo(m.awayId,'lg')}${teamNameHTML(m.awayId)}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-aw',aw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ca',ca)}</div>`:''}
         </div>
