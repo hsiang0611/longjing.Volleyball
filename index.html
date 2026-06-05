@@ -352,17 +352,16 @@ body.board-mode .flap.go .leaf.top{ animation-duration:.58s; }
 body.board-mode .flap.go .leaf.bottom{ animation-duration:.5s; animation-delay:.32s; }
 @media (prefers-reduced-motion: reduce){ .tscore.score-pop{ animation:none !important; } }
 
-/* 得分煙火（隊名上方） */
+/* 得分煙火（環繞得分隊伍的隊名一圈綻放） */
 .team-row .tname{ position:relative; }
-.fx-burst{ position:absolute; left:50%; top:-2px; width:0; height:0; pointer-events:none; z-index:6; }
-.fx-burst i{ position:absolute; left:0; top:0; border-radius:50%; background:var(--c,#ffc83d);
-  box-shadow:0 0 6px var(--c,#ffc83d); opacity:1;
-  transform:translate(-50%,-50%) scale(.6);
+.fx-burst{ position:absolute; inset:0; pointer-events:none; z-index:6; }
+.fx-burst i{ position:absolute; left:50%; top:50%; border-radius:50%; background:var(--c,#ffc83d);
+  box-shadow:0 0 6px var(--c,#ffc83d); opacity:0;
   animation:fxfly var(--d,1s) cubic-bezier(.15,.6,.3,1) forwards; }
 @keyframes fxfly{
-  0%{ transform:translate(-50%,-50%) scale(.5); opacity:1; }
-  18%{ opacity:1; }
-  100%{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.25); opacity:0; }
+  0%{ transform:translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(.4); opacity:0; }
+  20%{ opacity:1; }
+  100%{ transform:translate(calc(-50% + var(--ex)), calc(-50% + var(--ey))) scale(.25); opacity:0; }
 }
 @media (prefers-reduced-motion: reduce){ .fx-burst{ display:none !important; } }
 @media(max-width:520px){ .cols{gap:30px;} .ko-round{min-width:168px;} }
@@ -736,7 +735,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 <script>
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
-const APP_VERSION = 'v1.0 · 2026-06-03';
+const APP_VERSION = 'v1.1 · 2026-06-05';
 const RULES = { setsToWin:3, regular:25, deciding:15, margin:2 };
 const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_scoreboard') : null;
 
@@ -1188,22 +1187,26 @@ function applyFlips(){
     flipPrev[k]=v;
   });
 }
-// 純 CSS/JS 粒子煙火（不需圖檔），約 1 秒後自動移除
+// 純 CSS/JS 粒子煙火（不需圖檔）：沿隊名四周一圈綻放、往外擴散，約 1 秒後自動移除
 function launchFireworks(tnameEl, big){
   if(!tnameEl || flapReduce) return;
   const onBoard=document.body.classList.contains('board-mode');
-  const N=(big?24:14)+(onBoard?8:0);
-  const baseR=(big?108:60)*(onBoard?1.7:1);
+  const N=(big?28:18)+(onBoard?10:0);
+  const hw=(tnameEl.offsetWidth||120)/2, hh=(tnameEl.offsetHeight||30)/2;
+  const pad=onBoard?16:10;                         // 距隊名邊緣
+  const spread=(big?60:38)*(onBoard?1.6:1);        // 往外擴散距離
   const colors=['#ffc83d','#009cde','#ff3b5c','#2fdf9b','#ff7a18','#ffffff'];
   const layer=document.createElement('span'); layer.className='fx-burst';
   for(let i=0;i<N;i++){
-    const a=(Math.PI*2*i/N)+(Math.random()*0.5-0.25);
-    const r=baseR*(0.6+Math.random()*0.5);
-    const dx=Math.cos(a)*r, dy=Math.sin(a)*r - r*0.18;     // 略微上偏，像往上綻放
+    const a=(Math.PI*2*i/N)+(Math.random()*0.4-0.2);
+    const ca=Math.cos(a), sa=Math.sin(a);
+    const sx=ca*(hw+pad), sy=sa*(hh+pad);          // 起點：環繞隊名一圈
+    const r=spread*(0.7+Math.random()*0.6);
+    const ex=ca*(hw+pad+r), ey=sa*(hh+pad+r);      // 終點：往外綻放
     const sz=(big?9:7)*(onBoard?1.5:1)*(0.7+Math.random()*0.6);
     const p=document.createElement('i');
-    p.style.cssText='--dx:'+dx.toFixed(0)+'px;--dy:'+dy.toFixed(0)+'px;--c:'+colors[i%colors.length]
-      +';--d:'+(big?1.2:0.95)+'s;width:'+sz.toFixed(0)+'px;height:'+sz.toFixed(0)+'px;';
+    p.style.cssText='--sx:'+sx.toFixed(0)+'px;--sy:'+sy.toFixed(0)+'px;--ex:'+ex.toFixed(0)+'px;--ey:'+ey.toFixed(0)
+      +'px;--c:'+colors[i%colors.length]+';--d:'+(big?1.2:0.95)+'s;width:'+sz.toFixed(0)+'px;height:'+sz.toFixed(0)+'px;';
     layer.appendChild(p);
   }
   tnameEl.appendChild(layer);
