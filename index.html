@@ -83,6 +83,16 @@ body::before{
   align-items:center; justify-content:center; background:rgba(255,255,255,.06); border:1px solid var(--line-2);
   font-family:'Oswald',sans-serif; font-weight:700; font-size:13px; color:var(--muted); vertical-align:middle;}
 .tlogo img{width:100%; height:100%; object-fit:cover;}
+.tlogo.tlogo-c{font-weight:800; box-shadow:0 1px 4px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.14);}
+/* 前兩字：縮小字級、收緊間距，讓兩個中文字在圓圈內排得下 */
+.tlogo.tlogo-2{font-size:11px; letter-spacing:-.06em; line-height:1;}
+.tlogo.sm.tlogo-2{font-size:9px;}
+.tlogo.lg.tlogo-2{font-size:15px;}
+body.board-mode .tlogo.lg.tlogo-2{font-size:20px;}
+body.board-mode .board-live.n1 .tlogo.lg.tlogo-2{font-size:30px;}
+body.board-mode .board-live.n2 .tlogo.lg.tlogo-2{font-size:24px;}
+body.board-single .tlogo.lg.tlogo-2{font-size:32px;}
+@media(max-width:600px){ .tlogo.lg.tlogo-2{font-size:12px;} }
 .tlogo.lg{width:40px; height:40px; font-size:18px;}
 .tlogo.sm{width:22px; height:22px; font-size:11px;}
 .team-row .tname, .scard .vs-team{display:inline-flex; align-items:center; gap:9px;}
@@ -457,6 +467,15 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 .bk-acts{flex:none; display:flex; gap:6px;}
 .bk-acts .btn{font-size:12px; padding:5px 11px;}
 
+/* 手動編排八強 */
+.draw-modal{max-width:440px;}
+.draw-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; margin:8px 0 4px;}
+.draw-row{display:flex; align-items:center; gap:8px;}
+.draw-row label{flex:none; width:52px; font-family:'Oswald','Noto Sans TC',sans-serif; font-weight:600; font-size:13px; color:var(--jci);}
+.draw-row select{flex:1; min-width:0; font-family:'Barlow','Noto Sans TC',sans-serif; font-size:14px; color:var(--text);
+  background:rgba(0,0,0,.32); border:1px solid var(--line-2); border-radius:9px; padding:8px 9px;}
+@media(max-width:520px){ .draw-grid{grid-template-columns:1fr;} }
+
 /* ---------- 密碼對話框 ---------- */
 .modal-overlay{ position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
   background:rgba(3,16,30,.72); backdrop-filter:blur(5px); }
@@ -619,7 +638,8 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
       淘汰賽對戰樹
     </div>
     <div class="bracket-tools">
-      <button class="btn go" onclick="seedBracket()">依小組排名自動編排</button>
+      <button class="btn go" onclick="openManualDraw()">✍ 手動編排（抽籤）</button>
+      <button class="btn" onclick="seedBracket()">依小組排名自動編排</button>
       <button class="btn warn" onclick="clearBracket()">清除對戰樹</button>
       <span id="bracketHint" class="hint"></span>
     </div>
@@ -631,7 +651,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     </div>
     <p class="hint">
       四組各取前兩名共 8 隊進入八強，交叉編排（A1–B2、C1–D2、B1–A2、D1–C2）。
-      每場勝隊自動晉級下一輪。淘汰賽同樣是五局三勝，可直接在節點上開始、加減分、結束。
+      每場勝隊自動晉級下一輪。淘汰賽同樣是三局兩勝，可直接在節點上開始、加減分、結束。
       排名依「勝場 → 局數差 → 得分差」計算，建議小組賽全部打完再按「自動編排」。
     </p>
   </section>
@@ -646,7 +666,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     </div>
     <div id="admin" class="admin-grid"></div>
     <p class="hint">
-      點「開始」後即可加減分。第 1–4 局 25 分、決勝局（第 5 局）15 分，皆需淨勝 2 分；
+      點「開始」後即可加減分。三局兩勝：第 1–2 局 25 分、決勝局（第 3 局）15 分，皆需淨勝 2 分；
       系統會自動判定該局結束、自動換局、整場勝負。隊名、賽事名稱與副標都可直接點擊修改，會徽可從右上角上傳。<br>
       所有資料自動存在這台電腦的瀏覽器，重開不會遺失；要備份或換電腦請用「匯出 JSON」。
     </p>
@@ -704,6 +724,19 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
   </div>
 </div>
 
+<div class="modal-overlay" id="drawModal" onclick="if(event.target===this) closeManualDraw()">
+  <div class="modal draw-modal">
+    <h3>✍ 手動編排八強（抽籤結果）</h3>
+    <div class="m-sub">依抽籤把隊伍填入位置一~八。對戰為 (13) 一-二、(14) 三-四、(15) 五-六、(16) 七-八。同一隊不可重複。</div>
+    <div class="draw-grid" id="drawGrid"></div>
+    <div class="m-err" id="drawErr"></div>
+    <div class="m-actions">
+      <button class="btn" onclick="closeManualDraw()">取消</button>
+      <button class="btn go" onclick="applyManualDraw()">套用</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pwdModal" onclick="if(event.target===this) pwdCancel()">
   <div class="modal">
     <h3>🔒 需要密碼</h3>
@@ -736,7 +769,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
 const APP_VERSION = 'v1.1 · 2026-06-05';
-const RULES = { setsToWin:3, regular:25, deciding:15, margin:2 };
+const RULES = { setsToWin:2, regular:25, deciding:15, margin:2 };  // 三局兩勝；1、2 局 25 分，決勝第 3 局 15 分，淨勝 2 分
 const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_scoreboard') : null;
 
 /* ====== Firebase 雲端即時同步設定 ======
@@ -867,23 +900,39 @@ function roundRobin(ids){
   }
   return res;
 }
-function defaultBrand(){ return { title:'青商盃排球錦標賽', subtitle:'JCI VOLLEYBALL CUP · 青年商會', logo:'', copyright:'龍井國際青年商會', announce:'' }; }
+function defaultBrand(){ return { title:'2026 中區青商盃排球賽', subtitle:'JCI VOLLEYBALL CUP · 中區', logo:'', copyright:'龍井國際青年商會', announce:'' }; }
 function koSkeleton(){
-  const mk=(id,round,slot)=>({id, stage:'ko', round, slot, homeId:null, awayId:null, status:0, sets:[], currentSet:0});
-  return [ mk(1001,'QF',1), mk(1002,'QF',2), mk(1003,'QF',3), mk(1004,'QF',4),
-           mk(1005,'SF',1), mk(1006,'SF',2), mk(1007,'F',1) ];
+  const mk=(id,round,slot,no)=>({id, no, stage:'ko', round, slot, homeId:null, awayId:null, status:0, sets:[], currentSet:0});
+  return [ mk(1001,'QF',1,13), mk(1002,'QF',2,14), mk(1003,'QF',3,15), mk(1004,'QF',4,16),
+           mk(1005,'SF',1,17), mk(1006,'SF',2,18), mk(1007,'F',1,20), mk(1008,'B3',1,19) ];
 }
 function seed(){
-  const groups=['A','B','C','D'], teams=[]; let id=1;
-  for(const g of groups) for(let n=1;n<=4;n++){ teams.push({id, name:`${g} 組 第 ${n} 隊`, group:g, logo:''}); id++; }
-  const matches=[]; let mid=1, court=0;
-  for(const g of groups){
-    const ids=teams.filter(t=>t.group===g).map(t=>t.id);
-    for(const [round,home,away] of roundRobin(ids)){
-      matches.push({id:mid, stage:'group', homeId:home, awayId:away, group:g, court:`場地 ${court%2+1}`, time:`第 ${round} 輪`, status:0, sets:[], currentSet:0});
-      mid++; court++;
-    }
-  }
+  const T=[
+    {name:'神岡Ａ',g:'A'}, {name:'北中南排好隊',g:'A'}, {name:'25 聯隊',g:'A'},
+    {name:'龍井',g:'B'},   {name:'26 聯隊',g:'B'},     {name:'豐原',g:'B'},
+    {name:'彰化',g:'C'},   {name:'大雅',g:'C'},        {name:'神岡Ｂ',g:'C'},
+    {name:'免死金牌',g:'D'},{name:'台中殺球很兇悍',g:'D'},{name:'南投女',g:'D'}
+  ];
+  const teams=T.map((t,i)=>({id:i+1, name:t.name, group:t.g, logo:''}));
+  const nid=name=>teams.find(t=>t.name===name).id;
+  const 甲='甲場地', 乙='乙場地';
+  const G=(id,home,away,court,time)=>({id, no:id, stage:'group',
+    homeId:nid(home), awayId:nid(away), group:teams.find(t=>t.name===home).group,
+    court, time, status:0, sets:[], currentSet:0});
+  const matches=[
+    G(1,'神岡Ａ','25 聯隊',甲,'08:30'),
+    G(2,'龍井','26 聯隊',乙,'08:30'),
+    G(3,'彰化','大雅',甲,'10:20'),
+    G(4,'免死金牌','台中殺球很兇悍',乙,'10:20'),
+    G(5,'北中南排好隊','25 聯隊',甲,'11:00'),
+    G(6,'龍井','豐原',乙,'11:00'),
+    G(7,'彰化','神岡Ｂ',甲,'12:30'),
+    G(8,'免死金牌','南投女',乙,'12:30'),
+    G(9,'神岡Ａ','北中南排好隊',甲,'13:10'),
+    G(10,'26 聯隊','豐原',乙,'13:10'),
+    G(11,'大雅','神岡Ｂ',甲,'13:50'),
+    G(12,'台中殺球很兇悍','南投女',乙,'13:50')
+  ];
   return {brand:defaultBrand(), teams, matches:[...matches, ...koSkeleton()]};
 }
 function normalize(d){
@@ -892,6 +941,7 @@ function normalize(d){
   d.teams.forEach(t=>{ if(t.logo===undefined) t.logo=''; });
   d.matches.forEach(m=>{ if(!m.stage) m.stage='group'; if(!Array.isArray(m.sets)) m.sets=[]; });
   if(!d.matches.some(m=>m.stage==='ko')) d.matches.push(...koSkeleton());
+  else if(!d.matches.some(m=>m.id===1008)) d.matches.push(koSkeleton().find(m=>m.id===1008));
   return d;
 }
 function load(){
@@ -931,17 +981,23 @@ const teamName = id => { const t=state.teams.find(x=>x.id===id); return t? t.nam
 // 將任何文字轉義為安全的 HTML 純文字（隊名等使用者輸入都經過這裡，避免特殊符號破壞版面或注入內容）
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const teamNameHTML = id => esc(teamName(id));
-// 隊徽顯示空間：有隊徽顯示圖片，否則顯示隊名首字佔位。size: 'sm' | '' | 'lg'
+// 隊徽顯示空間：有隊徽顯示圖片，否則顯示隊名前兩字佔位。size: 'sm' | '' | 'lg'
+// 各組代表色（無隊徽時，前兩字圓標填該組色）
+const GROUP_COLORS = { A:{bg:'#009CDE',fg:'#ffffff'}, B:{bg:'#ffc83d',fg:'#3a2a00'},
+                       C:{bg:'#1fae74',fg:'#ffffff'}, D:{bg:'#ff3b5c',fg:'#ffffff'} };
 function teamLogo(id, size){
   const t = id==null ? null : state.teams.find(x=>x.id===id);
   const cls = 'tlogo' + (size?(' '+size):'');
-  const ini = esc((t && t.name) ? t.name.trim().charAt(0) : '?');
+  const label = esc((t && t.name) ? t.name.trim().slice(0,2) : '?');
+  const two = label.length>1 ? ' tlogo-2' : '';
   if(t && t.logo){
     const url=esc(t.logo);
-    // 圖片載入失敗時自動退回顯示首字
-    return `<span class="${cls}"><img src="${url}" alt="" onerror="var p=this.parentNode;p.textContent=this.getAttribute('data-ini');" data-ini="${ini}"></span>`;
+    // 圖片載入失敗時自動退回顯示前兩字
+    return `<span class="${cls}${two}"><img src="${url}" alt="" onerror="var p=this.parentNode;p.textContent=this.getAttribute('data-ini');" data-ini="${label}"></span>`;
   }
-  return `<span class="${cls}">${ini}</span>`;
+  const gc = (t && GROUP_COLORS[t.group]) || null;
+  const style = gc ? ` style="background:${gc.bg};color:${gc.fg};border-color:transparent"` : '';
+  return `<span class="${cls}${two} tlogo-c"${style}>${label}</span>`;
 }
 const setsWon = (m,side) => m.sets.filter(s=>s.finished && (side==='home'? s.home>s.away : s.away>s.home)).length;
 // 偵測賽末點/局末點：回傳 {type:'match'|'set', side:'home'|'away'} 或 null（雙方同時則回傳領先方；24-24 之類不算）
@@ -1004,11 +1060,13 @@ function setTeamLogo(tid){
 }
 
 /* ============ 淘汰賽對戰樹 ============ */
-const roundCN = { QF:'八強', SF:'四強', F:'冠軍戰' };
+const roundCN = { QF:'八強', SF:'四強', F:'冠軍戰', B3:'季軍戰' };
 function labelOf(m){ return m.stage==='ko' ? (roundCN[m.round]||'淘汰賽') : `${m.group} 組`; }
 const koOf = id => state.matches.find(m=>m.id===id);
 function koWinner(m){ if(!m||m.status!==2) return null; let h=0,a=0;
   m.sets.forEach(s=>{ if(s.finished){ if(s.home>s.away)h++; else a++; } }); return h>a?m.homeId:m.awayId; }
+function koLoser(m){ if(!m||m.status!==2) return null; let h=0,a=0;
+  m.sets.forEach(s=>{ if(s.finished){ if(s.home>s.away)h++; else a++; } }); return h>a?m.awayId:m.homeId; }
 
 function groupTeamIds(g){ return state.teams.filter(t=>t.group===g).map(t=>t.id); }
 function standings(g){
@@ -1041,6 +1099,8 @@ function syncBracket(){
   setSlot(1005,'home',w(1001)); setSlot(1005,'away',w(1002));
   setSlot(1006,'home',w(1003)); setSlot(1006,'away',w(1004));
   setSlot(1007,'home',w(1005)); setSlot(1007,'away',w(1006));
+  const l=id=>koLoser(koOf(id));
+  setSlot(1008,'home',l(1005)); setSlot(1008,'away',l(1006));   // 季軍賽：四強敗方
 }
 function seedBracket(){
   if(READONLY) return;
@@ -1053,15 +1113,47 @@ function seedBracket(){
   pair(1002, g(C,0), g(D,1));
   pair(1003, g(B,0), g(A,1));
   pair(1004, g(D,0), g(C,1));
-  [1005,1006,1007].forEach(id=>pair(id,null,null));
+  [1005,1006,1007,1008].forEach(id=>pair(id,null,null));
   commit();
 }
 async function clearBracket(){
   if(READONLY) return;
   if(!(await askPassword('清除整個對戰樹。'))) return;
   snap();
-  [1001,1002,1003,1004,1005,1006,1007].forEach(id=>{ const m=koOf(id); m.homeId=null; m.awayId=null; m.sets=[]; m.currentSet=0; m.status=0; });
+  [1001,1002,1003,1004,1005,1006,1007,1008].forEach(id=>{ const m=koOf(id); m.homeId=null; m.awayId=null; m.sets=[]; m.currentSet=0; m.status=0; });
   commit();
+}
+
+/* ====== 手動編排八強（抽籤結果）：位置一~八 ====== */
+const DRAW_POS=[['一',1001,'home'],['二',1001,'away'],['三',1002,'home'],['四',1002,'away'],
+                ['五',1003,'home'],['六',1003,'away'],['七',1004,'home'],['八',1004,'away']];
+function openManualDraw(){
+  if(READONLY) return;
+  const teams=state.teams.slice().sort((a,b)=> a.group.localeCompare(b.group) || a.id-b.id);
+  const grid=document.getElementById('drawGrid');
+  grid.innerHTML = DRAW_POS.map((d,i)=>{
+    const cur = koOf(d[1])[d[2]+'Id'];
+    const opts = ['<option value="">— 未指定 —</option>'].concat(
+      teams.map(t=>`<option value="${t.id}"${t.id===cur?' selected':''}>${esc(t.group+'｜'+t.name)}</option>`)).join('');
+    return `<div class="draw-row"><label>位置${d[0]}</label><select id="draw-pos-${i}">${opts}</select></div>`;
+  }).join('');
+  document.getElementById('drawErr').textContent='';
+  document.getElementById('drawModal').classList.add('show');
+}
+function closeManualDraw(){ document.getElementById('drawModal').classList.remove('show'); }
+function applyManualDraw(){
+  if(READONLY) return;
+  const vals = DRAW_POS.map((d,i)=>{ const v=document.getElementById('draw-pos-'+i).value; return v?Number(v):null; });
+  const nonEmpty=vals.filter(v=>v!=null);
+  if(new Set(nonEmpty).size !== nonEmpty.length){ document.getElementById('drawErr').textContent='有隊伍被重複指定，請檢查。'; return; }
+  snap();
+  [1001,1002,1003,1004].forEach(id=>{
+    const hi = vals[DRAW_POS.findIndex(d=>d[1]===id && d[2]==='home')];
+    const ai = vals[DRAW_POS.findIndex(d=>d[1]===id && d[2]==='away')];
+    const m=koOf(id);
+    if(m.homeId!==hi || m.awayId!==ai){ m.homeId=hi; m.awayId=ai; m.sets=[]; m.currentSet=0; m.status=0; }
+  });
+  commit(); closeManualDraw();
 }
 
 function koStepper(m,side,val){
@@ -1086,7 +1178,7 @@ function koNode(id){
       <button class="btn fin ko-act" onclick="finishMatch(${m.id})">結束本場</button></div>`;
   else if(m.status===2) ctrl=`<button class="btn warn ko-act" onclick="resetMatch(${m.id})">重設</button>`;
   return `<div class="ko-match ${m.status===1?'live':''} ${m.status===2?'done':''}" data-ko="${id}">
-    <div class="ko-head">${roundCN[m.round]}${m.round==='QF'?' #'+m.slot:''}</div>
+    <div class="ko-head">${roundCN[m.round]}${m.round==='QF'?' #'+m.slot:''}${m.no?' ('+m.no+')':''}</div>
     ${koRow(m,'home')}${koRow(m,'away')}
     ${ctrl?`<div class="ko-ctrl">${ctrl}</div>`:''}
   </div>`;
@@ -1103,7 +1195,7 @@ function renderBracket(){
   cols.innerHTML =
     `<div class="ko-round"><div class="ko-rlabel">八強</div><div class="ko-col">${koNode(1001)}${koNode(1002)}${koNode(1003)}${koNode(1004)}</div></div>`+
     `<div class="ko-round"><div class="ko-rlabel">四強</div><div class="ko-col">${koNode(1005)}${koNode(1006)}</div></div>`+
-    `<div class="ko-round"><div class="ko-rlabel">冠軍戰</div><div class="ko-col">${koNode(1007)}</div></div>`+
+    `<div class="ko-round"><div class="ko-rlabel">冠軍戰／季軍戰</div><div class="ko-col">${koNode(1007)}${koNode(1008)}</div></div>`+
     `<div class="ko-round"><div class="ko-rlabel">冠軍</div><div class="ko-col">${champNode()}</div></div>`;
   const hint=document.getElementById('bracketHint');
   if(hint) hint.textContent = groupComplete() ? '' : '小組賽尚未全部結束，編排會以目前排名為準。';
@@ -1268,7 +1360,7 @@ function liveCardHTML(m){
         <span class="badge ${statusClass(m.status)}">${statusName(m.status)}</span>
         ${psBadge}
         ${m.status===1?'<span class="spin-ball" aria-hidden="true"></span>':''}
-        <span class="lcard-right">${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
+        <span class="lcard-right">${m.no?('('+m.no+') '):''}${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
       </div>
       <div class="team-row">
         <div class="tname ${homeWin?'win':''}" data-tn="${m.id}-home">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}</div>
@@ -1332,7 +1424,7 @@ function renderSchedule(){
   const card = m => {
     const hw=setsWon(m,'home'), aw=setsWon(m,'away');
     const score = m.status===0 ? `<span class="meta">${m.time}</span>` : `<span class="mini-score">${hw} - ${aw}</span>`;
-    const sub = schedBy==='court' ? (m.group+' 組 · '+m.time) : (m.court+' · '+m.time);
+    const sub = (m.no?('('+m.no+') '):'') + (schedBy==='court' ? (m.group+' 組 · '+m.time) : (m.court+' · '+m.time));
     return `<div class="scard">
       <div class="row"><span class="vs-team">${teamLogo(m.homeId,'sm')}${teamNameHTML(m.homeId)}</span>${score}</div>
       <div class="row"><span class="vs-team">${teamLogo(m.awayId,'sm')}${teamNameHTML(m.awayId)}</span>
