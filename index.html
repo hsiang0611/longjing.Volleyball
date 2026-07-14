@@ -281,6 +281,9 @@ button, .btn, .sbtn, .seg, .tab, .tlogo-edit, .ann-x{ touch-action: manipulation
 .stand td.pos{color:var(--accent-2);} .stand td.neg{color:var(--muted);}
 .stand td.pts{font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; color:var(--gold);}
 .stand td.ratio{font-family:'Oswald',sans-serif; font-weight:600; color:var(--text);}
+.stand td.ratio .ratio-val{display:block; line-height:1.15;}
+.stand td.ratio .ratio-calc{display:block; font-family:'Barlow','Noto Sans TC',sans-serif; font-weight:400;
+  font-size:11px; color:var(--muted); letter-spacing:.02em;}
 .hidden{display:none !important;}
 .badge.ko{color:var(--gold); border-color:rgba(255,210,74,.45);}
 
@@ -1452,13 +1455,14 @@ function renderStandings(){
     const rows=standings(g);
     const body=rows.map((t,i)=>{
       const top2=i<2;
-      const ratioTxt = t.played===0 ? '—' : (t.pl>0 ? (t.pw/t.pl).toFixed(2) : '∞');
+      const ratioVal = t.played===0 ? '—' : (t.pl>0 ? (t.pw/t.pl).toFixed(2) : '∞');
+      const ratioCalc = t.played===0 ? '尚未出賽' : (t.pw+' ÷ '+t.pl);
       return `<tr class="${top2?'adv':''}">
         <td class="rk">${i+1}</td>
         <td class="nm">${teamNameHTML(t.id)}${top2?'<span class="adv-tag">晉級</span>':''}</td>
         <td>${t.mw}</td><td>${t.ml}</td>
         <td class="pts">${t.pts}</td>
-        <td class="ratio">${ratioTxt}</td></tr>`;
+        <td class="ratio"><span class="ratio-val">${ratioVal}</span><span class="ratio-calc">${ratioCalc}</span></td></tr>`;
     }).join('');
     return `<div class="stand-block">
       <div class="section-title" style="margin-top:14px">${g} 組</div>
