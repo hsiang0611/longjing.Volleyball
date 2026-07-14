@@ -279,6 +279,8 @@ button, .btn, .sbtn, .seg, .tab, .tlogo-edit, .ann-x{ touch-action: manipulation
 .adv-tag{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; letter-spacing:.06em;
   color:var(--jci); border:1px solid rgba(0,156,222,.5); border-radius:999px; padding:1px 7px; margin-left:8px; vertical-align:middle;}
 .stand td.pos{color:var(--accent-2);} .stand td.neg{color:var(--muted);}
+.stand td.pts{font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; color:var(--gold);}
+.stand td.ratio{font-family:'Oswald',sans-serif; font-weight:600; color:var(--text);}
 .hidden{display:none !important;}
 .badge.ko{color:var(--gold); border-color:rgba(255,210,74,.45);}
 
@@ -627,7 +629,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     </div>
     <div id="standings"></div>
     <p class="hint">
-      排名規則：先比<b>勝場數</b>，相同再比<b>局數差</b>（勝局−敗局），再相同比<b>得分差</b>（總得分−總失分）。
+      排名規則：先比<b>積分</b>（勝一場 2 分、負一場 1 分），相同再比<b>商數</b>（該隊總得分 ÷ 總失分）。
       每組前兩名（標示「晉級」）可進入八強對戰樹。比分一更新，這裡即時重算。
     </p>
   </section>
@@ -652,7 +654,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
     <p class="hint">
       四組各取前兩名共 8 隊進入八強，交叉編排（A1–B2、C1–D2、B1–A2、D1–C2）。
       每場勝隊自動晉級下一輪。淘汰賽同樣是三局兩勝，可直接在節點上開始、加減分、結束。
-      排名依「勝場 → 局數差 → 得分差」計算，建議小組賽全部打完再按「自動編排」。
+      排名依「積分（勝2/負1）→ 商數（總得分÷總失分）」計算，建議小組賽全部打完再按「自動編排」。
     </p>
   </section>
 
@@ -1071,16 +1073,21 @@ function koLoser(m){ if(!m||m.status!==2) return null; let h=0,a=0;
 function groupTeamIds(g){ return state.teams.filter(t=>t.group===g).map(t=>t.id); }
 function standings(g){
   const ids=groupTeamIds(g); const st={};
-  ids.forEach(id=>st[id]={id,mw:0,sw:0,sl:0,pw:0,pl:0});
+  ids.forEach(id=>st[id]={id,mw:0,ml:0,sw:0,sl:0,pw:0,pl:0});
   state.matches.filter(m=>m.stage!=='ko' && m.group===g && m.status===2).forEach(m=>{
     let hsw=0,asw=0,hpw=0,apw=0;
     m.sets.forEach(s=>{ if(s.finished){ if(s.home>s.away)hsw++; else asw++; } hpw+=s.home; apw+=s.away; });
     const h=st[m.homeId], a=st[m.awayId]; if(!h||!a) return;
     h.sw+=hsw; h.sl+=asw; h.pw+=hpw; h.pl+=apw;
     a.sw+=asw; a.sl+=hsw; a.pw+=apw; a.pl+=hpw;
-    if(hsw>asw) h.mw++; else a.mw++;
+    if(hsw>asw){ h.mw++; a.ml++; } else { a.mw++; h.ml++; }
   });
-  return ids.map(id=>st[id]).sort((x,y)=> y.mw-x.mw || (y.sw-y.sl)-(x.sw-x.sl) || (y.pw-y.pl)-(x.pw-x.pl) || x.id-y.id);
+  return ids.map(id=>st[id]).map(s=>{
+    s.pts = s.mw*2 + s.ml*1;                                   // 積分：勝 2、負 1
+    s.ratio = s.pl>0 ? s.pw/s.pl : (s.pw>0 ? 999 : 0);         // 商數：總得分 ÷ 總失分
+    s.played = s.mw + s.ml;
+    return s;
+  }).sort((x,y)=> y.pts-x.pts || y.ratio-x.ratio || (y.pw-y.pl)-(x.pw-x.pl) || x.id-y.id);
 }
 function groupComplete(){ return state.matches.filter(m=>m.stage!=='ko').every(m=>m.status===2); }
 
@@ -1443,22 +1450,20 @@ function renderStandings(){
   const groups=[...new Set(state.matches.filter(m=>m.stage!=='ko').map(m=>m.group))];
   box.innerHTML = groups.map(g=>{
     const rows=standings(g);
-    const played=id=>state.matches.filter(m=>m.stage!=='ko' && (m.homeId===id||m.awayId===id) && m.status===2).length;
     const body=rows.map((t,i)=>{
-      const p=played(t.id), l=p-t.mw;
-      const sd=t.sw-t.sl, pd=t.pw-t.pl, top2=i<2;
-      const fmt=v=>(v>0?'+':'')+v;
+      const top2=i<2;
+      const ratioTxt = t.played===0 ? '—' : (t.pl>0 ? (t.pw/t.pl).toFixed(2) : '∞');
       return `<tr class="${top2?'adv':''}">
         <td class="rk">${i+1}</td>
         <td class="nm">${teamNameHTML(t.id)}${top2?'<span class="adv-tag">晉級</span>':''}</td>
-        <td>${t.mw}</td><td>${l}</td>
-        <td class="${sd>0?'pos':(sd<0?'neg':'')}">${fmt(sd)}</td>
-        <td class="${pd>0?'pos':(pd<0?'neg':'')}">${fmt(pd)}</td></tr>`;
+        <td>${t.mw}</td><td>${t.ml}</td>
+        <td class="pts">${t.pts}</td>
+        <td class="ratio">${ratioTxt}</td></tr>`;
     }).join('');
     return `<div class="stand-block">
       <div class="section-title" style="margin-top:14px">${g} 組</div>
       <table class="stand">
-        <thead><tr><th>#</th><th>隊伍</th><th>勝</th><th>負</th><th>局差</th><th>分差</th></tr></thead>
+        <thead><tr><th>#</th><th>隊伍</th><th>勝</th><th>負</th><th>積分</th><th>商數</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>`;
   }).join('');
