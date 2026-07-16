@@ -279,6 +279,9 @@ button, .btn, .sbtn, .seg, .tab, .tlogo-edit, .ann-x{ touch-action: manipulation
 .adv-tag{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; letter-spacing:.06em;
   color:var(--jci); border:1px solid rgba(0,156,222,.5); border-radius:999px; padding:1px 7px; margin-left:8px; vertical-align:middle;}
 .stand td.pos{color:var(--accent-2);} .stand td.neg{color:var(--muted);}
+/* 勝/負/積分/商數 四欄等寬對齊 */
+.stand th:nth-child(n+3), .stand td:nth-child(n+3){ width:86px; text-align:center; }
+@media(max-width:600px){ .stand th:nth-child(n+3), .stand td:nth-child(n+3){ width:56px; } }
 .stand td.pts{font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; color:var(--gold);}
 .stand td.ratio{font-family:'Oswald',sans-serif; font-weight:600; color:var(--text);}
 .stand td.ratio .ratio-val{display:block; line-height:1.15;}
@@ -1453,8 +1456,10 @@ function renderStandings(){
   const groups=[...new Set(state.matches.filter(m=>m.stage!=='ko').map(m=>m.group))];
   box.innerHTML = groups.map(g=>{
     const rows=standings(g);
+    // 該組全部比賽結束後，才顯示「晉級」標示（避免未賽先標）
+    const done = state.matches.filter(m=>m.stage!=='ko' && m.group===g).every(m=>m.status===2);
     const body=rows.map((t,i)=>{
-      const top2=i<2;
+      const top2 = i<2 && done;
       const ratioVal = t.played===0 ? '—' : (t.pl>0 ? (t.pw/t.pl).toFixed(2) : '∞');
       const ratioCalc = t.played===0 ? '尚未出賽' : (t.pw+' ÷ '+t.pl);
       return `<tr class="${top2?'adv':''}">
