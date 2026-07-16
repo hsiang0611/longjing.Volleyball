@@ -475,6 +475,23 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 .bk-acts{flex:none; display:flex; gap:6px;}
 .bk-acts .btn{font-size:12px; padding:5px 11px;}
 
+/* 吐司提示 */
+#toastBox{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200; display:flex; flex-direction:column; gap:8px; pointer-events:none;}
+.toast{background:rgba(4,26,46,.96); border:1px solid var(--accent-2); color:var(--text); font-family:'Barlow','Noto Sans TC',sans-serif;
+  font-size:14px; font-weight:600; padding:11px 18px; border-radius:12px; box-shadow:0 10px 26px rgba(0,0,0,.5);
+  opacity:0; transform:translateY(8px); transition:.3s;}
+.toast.on{opacity:1; transform:translateY(0);}
+body.board-mode .toast{font-size:20px; padding:14px 26px;}
+
+/* 發球權指示 */
+.serve-ball{display:inline-block; margin-left:6px; font-size:.8em; animation:serveBob 1.4s ease-in-out infinite;}
+@keyframes serveBob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+.serve-btn{flex:none; width:30px; height:30px; border-radius:50%; border:1px solid var(--line-2); background:transparent;
+  font-size:14px; cursor:pointer; opacity:.35; transition:.15s; display:inline-flex; align-items:center; justify-content:center;}
+.serve-btn.on{opacity:1; border-color:var(--accent-2); background:rgba(255,200,61,.14); box-shadow:0 0 8px rgba(255,200,61,.35);}
+.serve-btn:disabled{opacity:.15; cursor:not-allowed;}
+@media (prefers-reduced-motion: reduce){ .serve-ball{animation:none;} }
+
 /* 手動編排八強 */
 .draw-modal{max-width:440px;}
 .draw-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; margin:8px 0 4px;}
@@ -570,6 +587,9 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
           <button class="btn" onclick="copyViewerLink()">🔗 觀眾連結</button>
           <button class="btn" onclick="openAnnounce()">📢 公告</button>
           <button class="btn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
+          <button class="btn" id="wakeBtn" onclick="toggleWake()">☀ 螢幕常亮：關</button>
+          <button class="btn" onclick="printSheets()">🖨 列印賽程／成績</button>
+          <button class="btn" onclick="exportCSV()">📄 成績 CSV</button>
           <button class="btn" onclick="exportJSON()">⬇ 匯出 JSON</button>
           <button class="btn" onclick="document.getElementById('importFile').click()">⬆ 匯入 JSON</button>
           <button class="btn" onclick="openBackups()">🗄 備份／還原</button>
@@ -776,7 +796,7 @@ body.readonly .site-footer .cr-holder{pointer-events:none; border-color:transpar
 <script>
 /* ============ 設定 ============ */
 const STORAGE_KEY = 'vb_jci_tournament_v1';
-const APP_VERSION = 'v1.1 · 2026-06-05';
+const APP_VERSION = 'v1.2 · 2026-07-16';
 const RULES = { setsToWin:2, regular:25, deciding:15, margin:2 };  // 三局兩勝；1、2 局 25 分，決勝第 3 局 15 分，淨勝 2 分
 const channel = ('BroadcastChannel' in window) ? new BroadcastChannel('vb_jci_scoreboard') : null;
 
@@ -857,15 +877,57 @@ function updateLoginBtn(){
   b.textContent = authUser ? ('✓ 計分台：'+(authUser.email||'已登入')) : '🔑 計分台登入';
 }
 
+/* ── 逐場同步：計分寫入只推「那一場」，多場地同時計分不互相覆蓋 ──
+   結構性變更（改名、抽籤、匯入、重來、還原、復原）仍推整包並重設 live 基準。
+   合併規則：每場帶 rev（最後異動時間戳），rev 較新者勝。 */
+let liveRef=null;
+const dirtyMatches=new Set();
+function touch(m){ if(m){ m.rev=Date.now(); dirtyMatches.add(m.id); } }
+function matchDyn(m){ return {homeId:m.homeId, awayId:m.awayId, sets:m.sets, currentSet:m.currentSet, status:m.status, serve:m.serve||null, rev:m.rev||0}; }
 function pushState(){
   if(READONLY || !useFirebase || !fbRef) return;
   // 若資料庫規則要求登入而尚未登入，先不寫雲端（仍存 localStorage），並提示
   if(authEnabled && !authUser){ setSyncStatus('needlogin'); return; }
+  const now=Date.now(); state.matches.forEach(m=>{ m.rev=now; });   // 整包推送＝新基準
   const json=JSON.stringify(state); lastSeen=json;
-  fbRef.set({ data:json, updatedAt: Date.now() }).catch(err=>{
+  fbRef.set({ data:json, updatedAt: now }).catch(err=>{
     if(err && (err.code==='PERMISSION_DENIED' || /permission/i.test(err.message||''))){ setSyncStatus('denied'); }
     else setSyncStatus('error');
   });
+  if(liveRef) liveRef.set(null).catch(()=>{});                      // 清空逐場層，以整包為準
+}
+function pushMatches(){
+  if(READONLY || !useFirebase || !liveRef){ dirtyMatches.clear(); return; }
+  if(authEnabled && !authUser){ setSyncStatus('needlogin'); dirtyMatches.clear(); return; }
+  dirtyMatches.forEach(id=>{
+    const m=find(id); if(!m) return;
+    liveRef.child(String(id)).set({ d: JSON.stringify(matchDyn(m)) }).catch(err=>{
+      if(err && (err.code==='PERMISSION_DENIED' || /permission/i.test(err.message||''))){ setSyncStatus('denied'); }
+      else setSyncStatus('error');
+    });
+  });
+  dirtyMatches.clear();
+}
+function applyMatchDyn(local, d){
+  local.homeId=d.homeId; local.awayId=d.awayId; local.sets=d.sets||[];
+  local.currentSet=d.currentSet||0; local.status=d.status||0; local.serve=d.serve||null; local.rev=d.rev||0;
+}
+function mergeLive(val){
+  if(!val) return false;
+  let changed=false;
+  Object.keys(val).forEach(k=>{
+    const rec=val[k]; if(!rec || typeof rec.d!=='string') return;
+    let d; try{ d=JSON.parse(rec.d); }catch(e){ return; }
+    const local=find(Number(k)); if(!local) return;
+    if((d.rev||0) > (local.rev||0)){ applyMatchDyn(local, d); changed=true; }
+  });
+  return changed;
+}
+function mergeFull(d){
+  // 整包套用，但每場若本機 rev 較新則保留本機（保護計分中的場次不被舊整包蓋掉）
+  const mine={}; state && state.matches && state.matches.forEach(m=>{ mine[m.id]=m; });
+  d.matches.forEach((m,i)=>{ const l=mine[m.id]; if(l && (l.rev||0) > (m.rev||0)) d.matches[i]=l; });
+  return d;
 }
 function initFirebase(){
   const notSet = !firebaseConfig.databaseURL || firebaseConfig.databaseURL.indexOf('在此貼上')===0;
@@ -873,6 +935,7 @@ function initFirebase(){
   try{
     firebase.initializeApp(firebaseConfig);
     fbRef = firebase.database().ref('tournaments/'+ROOM_ID);
+    liveRef = firebase.database().ref('tournaments_live/'+ROOM_ID);
     useFirebase=true; setSyncStatus('connecting');
     // 若已啟用 Firebase 驗證，追蹤登入狀態（觀眾不需登入即可讀取）
     if(hasAuth()){
@@ -886,12 +949,18 @@ function initFirebase(){
       if(v && typeof v.data==='string'){
         if(v.data!==lastSeen){
           lastSeen=v.data;
-          try{ const d=normalize(JSON.parse(v.data)); if(d){ state=d; render(); } }catch(e){}
+          try{ const d=normalize(JSON.parse(v.data)); if(d){ state=mergeFull(d); render(); } }catch(e){}
         }
       } else if(!READONLY){
         pushState();   // 雲端尚無資料 → 由計分台上傳目前狀態
       }
     }, ()=>{ useFirebase=false; setSyncStatus('error'); });
+    liveRef.on('value', snap=>{
+      if(mergeLive(snap.val())){
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+        render();
+      }
+    });
     firebase.database().ref('.info/connected').on('value', s=>{ if(useFirebase) setSyncStatus(s.val()?'online':'offline'); });
   }catch(e){ useFirebase=false; setSyncStatus('error'); }
 }
@@ -947,7 +1016,7 @@ function normalize(d){
   if(!(d && Array.isArray(d.teams) && Array.isArray(d.matches) && d.teams.length && d.matches.length)) return null;
   if(!d.brand) d.brand=defaultBrand();
   d.teams.forEach(t=>{ if(t.logo===undefined) t.logo=''; });
-  d.matches.forEach(m=>{ if(!m.stage) m.stage='group'; if(!Array.isArray(m.sets)) m.sets=[]; });
+  d.matches.forEach(m=>{ if(!m.stage) m.stage='group'; if(!Array.isArray(m.sets)) m.sets=[]; if(m.serve===undefined) m.serve=null; if(m.rev===undefined) m.rev=0; });
   if(!d.matches.some(m=>m.stage==='ko')) d.matches.push(...koSkeleton());
   else if(!d.matches.some(m=>m.id===1008)) d.matches.push(koSkeleton().find(m=>m.id===1008));
   return d;
@@ -961,8 +1030,8 @@ function commit(){
   if(READONLY) return;
   syncBracket();
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ alert('本機儲存失敗：'+e.message); }
-  if(useFirebase) pushState();
-  else if(channel) channel.postMessage('updated');
+  if(useFirebase){ if(dirtyMatches.size) pushMatches(); else pushState(); }
+  else { dirtyMatches.clear(); if(channel) channel.postMessage('updated'); }
   render();
 }
 if(channel) channel.onmessage = () => { const d=load(); if(d){ state=d; render(); } };
@@ -1038,23 +1107,34 @@ function evaluate(m){
   }
 }
 function startMatch(id){ if(READONLY) return; const m=find(id); if(!m||m.status===2) return; snap(); m.status=1;
-  if(m.sets.length===0){ m.sets.push({home:0,away:0,finished:false}); m.currentSet=0; } commit(); }
+  if(m.sets.length===0){ m.sets.push({home:0,away:0,finished:false}); m.currentSet=0; } touch(m); commit(); }
 function addPoint(id,side,delta){ if(READONLY) return; const m=find(id); if(!m||m.status!==1) return;
   const cs=m.sets[m.currentSet]; if(!cs) return;
   snap();
   const prevSets=setsWon(m,'home')+setsWon(m,'away'), wasStatus=m.status;
+  const decidingIdx=RULES.setsToWin*2-2;                 // 決勝局索引（三局兩勝=第3局，index 2）
+  const wasDeciding = m.currentSet===decidingIdx && !cs.finished;
+  const prevMax = Math.max(cs.home, cs.away);
   if(side==='home') cs.home=Math.max(0,cs.home+delta); else cs.away=Math.max(0,cs.away+delta);
+  if(delta>0) m.serve=side;                              // 得分方取得發球權
   evaluate(m);
   if(delta>0){
     if(m.status===2 && wasStatus!==2) playSound('match');
     else if(setsWon(m,'home')+setsWon(m,'away')>prevSets) playSound('set');
     else playSound('point');
+    // 決勝局有一隊先達 8 分 → 換邊提醒（只提醒一次：跨過 8 的那一分）
+    if(wasDeciding && prevMax<8 && Math.max(cs.home,cs.away)===8 && m.status===1){
+      showToast('⚠ 決勝局換邊：已有一隊達 8 分'); playSound('set');
+    }
   }
-  commit(); }
-function finishMatch(id){ if(READONLY) return; const m=find(id); if(!m) return; snap(); m.status=2; commit(); }
+  touch(m); commit(); }
+function finishMatch(id){ if(READONLY) return; const m=find(id); if(!m) return; snap(); m.status=2; touch(m); commit(); }
 async function resetMatch(id){ if(READONLY) return; const m=find(id); if(!m) return;
   if(!(await askPassword('重設這場比賽，將清空所有比分。'))) return;
-  snap(); m.sets=[]; m.currentSet=0; m.status=0; commit(); }
+  snap(); m.sets=[]; m.currentSet=0; m.status=0; m.serve=null; touch(m); commit(); }
+// 發球權：點隊伍旁的球即可手動指定（得分時自動跟隨得分方）
+function setServe(id,side){ if(READONLY) return; const m=find(id); if(!m||m.status!==1) return;
+  m.serve = (m.serve===side) ? null : side; touch(m); commit(); }
 function renameTeam(tid,name){ if(READONLY) return; const t=state.teams.find(x=>x.id===tid); if(t && name.trim()) t.name=name.trim(); commit(); }
 // 設定隊徽（圖片網址）：輸入網址即顯示，留白則移除。資料只存網址，不內嵌圖片，雲端同步輕巧。
 function setTeamLogo(tid){
@@ -1107,6 +1187,7 @@ function syncBracket(){
       if(m.sets.length||m.status!==0){ m.sets=[]; m.currentSet=0; m.status=0; }
     }
     m[key]=val;
+    touch(m);
   };
   const w=id=>koWinner(koOf(id));
   setSlot(1005,'home',w(1001)); setSlot(1005,'away',w(1002));
@@ -1376,13 +1457,13 @@ function liveCardHTML(m){
         <span class="lcard-right">${m.no?('('+m.no+') '):''}${m.stage==='ko'?(roundCN[m.round]||'淘汰賽'):(m.court+' · '+m.time)}${projBtn}</span>
       </div>
       <div class="team-row">
-        <div class="tname ${homeWin?'win':''}" data-tn="${m.id}-home">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}</div>
+        <div class="tname ${homeWin?'win':''}" data-tn="${m.id}-home">${teamLogo(m.homeId,'lg')}${teamNameHTML(m.homeId)}${m.status===1&&m.serve==='home'?'<span class="serve-ball" title="發球權">🏐</span>':''}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-hw',hw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ch',ch)}</div>`:''}
         </div>
       </div>
       <div class="team-row">
-        <div class="tname ${awayWin?'win':''}" data-tn="${m.id}-away">${teamLogo(m.awayId,'lg')}${teamNameHTML(m.awayId)}</div>
+        <div class="tname ${awayWin?'win':''}" data-tn="${m.id}-away">${teamLogo(m.awayId,'lg')}${teamNameHTML(m.awayId)}${m.status===1&&m.serve==='away'?'<span class="serve-ball" title="發球權">🏐</span>':''}</div>
         <div style="display:flex; align-items:center; gap:14px;">
           <div class="tscore">${flipNum('lv-'+m.id+'-aw',aw)}</div>${m.status===1?`<div class="tscore cur">${flipNum('lv-'+m.id+'-ca',ca)}</div>`:''}
         </div>
@@ -1508,11 +1589,13 @@ function renderAdmin(){
       <div class="side">
         <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.homeId})">${teamLogo(m.homeId,'sm')}</span>
         <div class="nm"><input class="team-edit" value="${esc(teamName(m.homeId))}" onchange="renameTeam(${m.homeId}, this.value)"></div>
+        <button class="serve-btn ${m.serve==='home'?'on':''}" ${live?'':'disabled'} onclick="setServe(${m.id},'home')" title="發球權（點擊指定）">🏐</button>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-hw',hw)}</div>${stepper('home',ch)}
       </div>
       <div class="side">
         <span class="tlogo-edit" title="設定隊徽網址" onclick="setTeamLogo(${m.awayId})">${teamLogo(m.awayId,'sm')}</span>
         <div class="nm"><input class="team-edit" value="${esc(teamName(m.awayId))}" onchange="renameTeam(${m.awayId}, this.value)"></div>
+        <button class="serve-btn ${m.serve==='away'?'on':''}" ${live?'':'disabled'} onclick="setServe(${m.id},'away')" title="發球權（點擊指定）">🏐</button>
         <div class="snum" style="color:var(--muted); font-size:18px; min-width:24px">${flipNum('ad-'+m.id+'-aw',aw)}</div>${stepper('away',ca)}
       </div>
       ${m.sets.length?`<div class="sets-chips">${chips}</div>`:''}
@@ -1691,6 +1774,98 @@ document.getElementById('announceInput').addEventListener('keydown', e=>{
   else if(e.key==='Escape'){ e.preventDefault(); closeAnnounceModal(); }
 });
 
+/* ============ 吐司提示（非阻斷） ============ */
+function showToast(txt, ms){
+  let box=document.getElementById('toastBox');
+  if(!box){ box=document.createElement('div'); box.id='toastBox'; document.body.appendChild(box); }
+  const t=document.createElement('div'); t.className='toast'; t.textContent=txt;
+  box.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('on'));
+  setTimeout(()=>{ t.classList.remove('on'); setTimeout(()=>t.remove(), 350); }, ms||3200);
+}
+
+/* ============ 螢幕常亮（Wake Lock）：計分/投影裝置不休眠 ============ */
+let wakeLock=null, wakeOn=false;
+try{ wakeOn = localStorage.getItem('vb_wake')==='1'; }catch(e){}
+async function reqWakeLock(){
+  if(!('wakeLock' in navigator)) return false;
+  try{ wakeLock=await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', ()=>{ wakeLock=null; });
+    return true;
+  }catch(e){ return false; }
+}
+async function applyWake(){
+  if(wakeOn){ if(!wakeLock) await reqWakeLock(); }
+  else if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock=null; }
+  updateWakeBtn();
+}
+async function toggleWake(){
+  if(!('wakeLock' in navigator)){ alert('此瀏覽器不支援螢幕常亮（Wake Lock）。\n可改在裝置系統設定將螢幕逾時調長。'); return; }
+  wakeOn=!wakeOn;
+  try{ localStorage.setItem('vb_wake', wakeOn?'1':'0'); }catch(e){}
+  await applyWake();
+  showToast(wakeOn?'☀ 螢幕常亮：已開啟':'螢幕常亮：已關閉');
+}
+function updateWakeBtn(){ const b=document.getElementById('wakeBtn'); if(b) b.textContent='☀ 螢幕常亮：'+(wakeOn?'開':'關'); }
+// 切回分頁 / 進入大螢幕時重新取得（Wake Lock 會在分頁隱藏時被系統釋放）
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && wakeOn) applyWake(); });
+
+/* ============ 列印賽程／成績 與 CSV 匯出 ============ */
+function matchScoreTxt(m){
+  if(m.status===0) return '';
+  const hw=setsWon(m,'home'), aw=setsWon(m,'away');
+  const sets=m.sets.map(s=>s.home+'-'+s.away).join('、');
+  return hw+' : '+aw+(sets?('（'+sets+'）'):'');
+}
+function printSheets(){
+  const nm=id=> id==null?'（待定）':teamName(id);
+  const gm=state.matches.filter(m=>m.stage!=='ko');
+  const ko=state.matches.filter(m=>m.stage==='ko');
+  const rowsG=gm.map(m=>`<tr><td>(${m.no})</td><td>${m.group} 組</td><td>${m.time}</td><td>${m.court}</td>
+    <td>${esc(nm(m.homeId))} － ${esc(nm(m.awayId))}</td><td>${esc(matchScoreTxt(m))||'　'}</td></tr>`).join('');
+  const rowsK=ko.map(m=>`<tr><td>(${m.no||''})</td><td>${roundCN[m.round]||''}</td><td colspan="2"></td>
+    <td>${esc(nm(m.homeId))} － ${esc(nm(m.awayId))}</td><td>${esc(matchScoreTxt(m))||'　'}</td></tr>`).join('');
+  const stand=['A','B','C','D'].map(g=>{
+    const rows=standings(g);
+    const done=state.matches.filter(m=>m.stage!=='ko'&&m.group===g).every(m=>m.status===2);
+    const tr=rows.map((t,i)=>`<tr><td>${i+1}${done&&i<2?'（晉級）':''}</td><td>${esc(teamName(t.id))}</td>
+      <td>${t.mw}</td><td>${t.ml}</td><td>${t.pts}</td><td>${t.played? (t.pl>0?(t.pw/t.pl).toFixed(3):'∞')+'（'+t.pw+'÷'+t.pl+'）':'—'}</td></tr>`).join('');
+    return `<h3>${g} 組</h3><table><thead><tr><th>#</th><th>隊伍</th><th>勝</th><th>負</th><th>積分</th><th>商數</th></tr></thead><tbody>${tr}</tbody></table>`;
+  }).join('');
+  const w=window.open('','_blank');
+  if(!w){ alert('請允許彈出視窗以進行列印。'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(state.brand.title)}－賽程與成績</title>
+  <style>body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#000; margin:24px;}
+  h1{font-size:20px; margin:0 0 2px;} h2{font-size:16px; margin:18px 0 6px;} h3{font-size:14px; margin:12px 0 4px;}
+  table{border-collapse:collapse; width:100%; margin-bottom:8px;} th,td{border:1px solid #444; padding:5px 8px; font-size:12px; text-align:center;}
+  th{background:#eee;} td:nth-child(5){text-align:left;} .foot{margin-top:14px; font-size:11px; color:#555;}
+  @media print{ h2{page-break-before:auto;} }</style></head><body>
+  <h1>${esc(state.brand.title)}</h1><div style="font-size:12px;color:#555">${esc(state.brand.subtitle||'')}　印製時間：${new Date().toLocaleString('zh-TW')}</div>
+  <h2>預賽賽程（分組循環）</h2><table><thead><tr><th>場次</th><th>組別</th><th>時間</th><th>場地</th><th>對戰</th><th>比分</th></tr></thead><tbody>${rowsG}</tbody></table>
+  <h2>複決賽（單淘汰）</h2><table><thead><tr><th>場次</th><th>輪次</th><th colspan="2"></th><th>對戰</th><th>比分</th></tr></thead><tbody>${rowsK}</tbody></table>
+  <h2>積分榜</h2>${stand}
+  <div class="foot">${esc(state.brand.copyright||'')}　賽制：三局兩勝（1、2 局 25 分，決勝局 15 分）；積分＝勝 2／負 1，商數＝總得分 ÷ 總失分。</div>
+  <script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+function exportCSV(){
+  const nm=id=> id==null?'待定':teamName(id);
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const head=['場次','階段','組別/輪次','時間','場地','主隊','客隊','局數比','各局比分','勝方','狀態'];
+  const rows=state.matches.map(m=>{
+    const hw=setsWon(m,'home'), aw=setsWon(m,'away');
+    const winner = m.status===2 ? (hw>aw?nm(m.homeId):nm(m.awayId)) : '';
+    return [m.no||m.id, m.stage==='ko'?'複決賽':'預賽', m.stage==='ko'?(roundCN[m.round]||''):(m.group+' 組'),
+      m.time||'', m.court||'', nm(m.homeId), nm(m.awayId),
+      m.sets.length? hw+':'+aw : '', m.sets.map(s=>s.home+'-'+s.away).join(' / '),
+      winner, statusName(m.status)].map(q).join(',');
+  });
+  const csv='\uFEFF'+head.map(q).join(',')+'\n'+rows.join('\n');
+  const blob=new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='青商盃成績_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
 /* ============ 工具列「更多」選單 ============ */
 function toggleToolMenu(){
   const w=document.querySelector('.more-wrap'); if(!w) return;
@@ -1730,6 +1905,7 @@ function applyBoardMode(){
   document.body.classList.toggle('board-single', on && boardMatchId!=null);
   document.getElementById('boardExit').classList.toggle('hidden', !on);
   if(on){ curTab='scoreboard';
+    reqWakeLock();                       // 投影中保持螢幕常亮
     const bq=document.getElementById('boardQR');
     if(bq && !READONLY){ makeQR('boardQRImg', buildViewerLink(), 96); bq.classList.add('on'); }
     const ab=document.getElementById('announceBar'), at=document.getElementById('announceText');
@@ -1746,6 +1922,7 @@ applyReadonly();
 if(READONLY){ const a=document.getElementById('evtTitle'), b=document.getElementById('evtSub'), c=document.getElementById('crHolder'); if(a)a.readOnly=true; if(b)b.readOnly=true; if(c)c.readOnly=true;
   document.title = '〔觀眾〕' + document.title; }
 updateSoundBtn();
+applyWake();
 (function(){ const v=document.getElementById('verStamp'); if(v) v.textContent=APP_VERSION; })();
 if(!READONLY){ saveBackup(); setInterval(()=>saveBackup(), BACKUP_INTERVAL); }
 applyBoardMode();
