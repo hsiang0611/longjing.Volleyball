@@ -445,11 +445,6 @@ body.board-mode .announce{font-size:22px; padding:16px 22px; margin:8px 0 14px;}
 .qr-box .qr-img img, .qr-box .qr-img canvas{display:block;}
 .qr-url{font-family:'Barlow'; font-size:12px; color:var(--muted); word-break:break-all; text-align:center; max-width:300px;}
 
-/* 大螢幕角落小 QR */
-.board-qr{display:none; position:fixed; right:18px; bottom:18px; z-index:70; background:#fff; padding:9px;
-  border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,.5); text-align:center;}
-.board-qr .cap{font-family:'Oswald','Noto Sans TC'; font-size:11px; color:#0a0e1a; margin-top:5px; letter-spacing:.04em;}
-body.board-mode .board-qr.on{display:block;}
 
 /* ---------- 頁尾版權 ---------- */
 .site-footer{margin-top:40px; padding:20px 4px 6px; border-top:1px solid var(--line);
@@ -711,7 +706,6 @@ body.board-mode .toast{font-size:20px; padding:14px 26px;}
 
 <button class="btn board-exit hidden" id="boardExit" onclick="location.hash=''; location.reload();">離開大螢幕</button>
 
-<div class="board-qr" id="boardQR"><div id="boardQRImg"></div><div class="cap">掃描看即時比分</div></div>
 
 <div class="modal-overlay" id="qrModal" onclick="if(event.target===this) closeQR()">
   <div class="modal">
@@ -1906,8 +1900,6 @@ function applyBoardMode(){
   document.getElementById('boardExit').classList.toggle('hidden', !on);
   if(on){ curTab='scoreboard';
     reqWakeLock();                       // 投影中保持螢幕常亮
-    const bq=document.getElementById('boardQR');
-    if(bq && !READONLY){ makeQR('boardQRImg', buildViewerLink(), 96); bq.classList.add('on'); }
     const ab=document.getElementById('announceBar'), at=document.getElementById('announceText');
     if(ab && at && ab.classList.contains('show')) requestAnimationFrame(()=>updateMarquee(ab, at));
   }
